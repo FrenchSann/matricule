@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { deleteLog, saveLog } from '../../db/engine';
 import { addDays, formatDuration, formatShort } from '../../domain/dates';
-import { templateFor } from '../../domain/program';
-import { SESSION_LABEL, type LogEntry, type Phase, type PlannedSession, type SessionType } from '../../domain/types';
+import { SESSION_LABEL, type LogEntry, type PlannedSession, type SessionType } from '../../domain/types';
 import { flattenGroups, initialGroups, StrengthLog, type ExerciseGroup } from './StrengthLog';
 import { RpePicker, Sheet, Stepper, TYPE_CODE } from '../../ui/kit';
 import { useUI, type Data } from '../../state';
@@ -39,7 +38,6 @@ export function LogSheet({ data, session, onClose }: { data: Data; session?: Pla
   const [distance, setDistance] = useState(base.distanceKm);
   const [load, setLoad] = useState(base.loadKg);
   const historyFor = (d: string) => data.logs.filter((l) => l.id !== existing?.id && l.date <= d);
-  const templates = ([1, 2, 3, 4] as Phase[]).map((p) => templateFor(data.profile, p));
   const [groups, setGroups] = useState<ExerciseGroup[]>(() => initialGroups(base.sets, source?.exercises, historyFor(base.date!)));
   const [rpe, setRpe] = useState(base.rpe);
   const [pain, setPain] = useState(!!base.pain);
@@ -138,7 +136,7 @@ export function LogSheet({ data, session, onClose }: { data: Data; session?: Pla
           </div>
         )}
 
-        {HAS.sets(type) && <StrengthLog groups={groups} onChange={setGroups} history={historyFor(date)} templates={templates} />}
+        {HAS.sets(type) && <StrengthLog groups={groups} onChange={setGroups} history={historyFor(date)} prescribed={source?.exercises} />}
 
         <div className="field">
           <span className="field-label">Douleur</span>

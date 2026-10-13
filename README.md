@@ -11,12 +11,21 @@ npm run dev        # http://localhost:5173
 npm test           # moteur : progression, phases, streak, grades
 npm run build      # dist/ + service worker
 npm run icons      # régénère les icônes PNG
-python e2e/shots.py && python e2e/scenarios.py && python e2e/strength.py   # captures iPhone (vite preview sur :4173 et dev sur :5173)
+python e2e/shots.py && python e2e/scenarios.py && python e2e/programme.py   # captures iPhone (vite preview sur :4173 et dev sur :5173)
+```
+
+## Programme
+
+Les 58 fiches viennent du PDF « Programme hybride 58 semaines », converti en données par :
+
+```bash
+pip install pypdf
+python scripts/parse-programme.py chemin/vers/Programme_Hybride_58_semaines.pdf   # écrit src/data/programme.json
 ```
 
 ## Organisation
 
-- `src/domain/` : règles métier pures et testées (aucune dépendance à React)
+- `src/domain/` : règles métier pures et testées : fiches (`programme.ts`), décision du dimanche (`cursor.ts`), double progression en salle (`strength.ts`), bilans, streak, grades
 - `src/db/` : schéma Dexie, génération des semaines, sauvegarde
 - `src/features/` : écrans (Aujourd'hui, Plan, Consigner, Stats, Dossier)
 

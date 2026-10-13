@@ -1,20 +1,21 @@
 import { useEffect, useState } from 'react';
-import { addSession, deleteSession, moveSession, previewWeek, toggleDone, updateSession } from '../../db/engine';
+import { addSession, deleteSession, moveSession, previewWeek, swapAlternative, toggleDone, updateSession } from '../../db/engine';
 import { addWeeks, DAY_SHORT, formatDay, formatShort, mondayOf, weekDays, type ISODate } from '../../domain/dates';
-import { PHASES } from '../../domain/program';
+import { blockOf } from '../../domain/programme';
+import { DECISION_LABEL } from '../../domain/cursor';
 import type { PlannedSession, WeekPlan } from '../../domain/types';
 import { Icons, Sheet, TYPE_CODE } from '../../ui/kit';
 import { useUI, type Data } from '../../state';
-import { DAY_STATUS, ROMAN, sessionMeta, WEEK_KIND } from '../labels';
+import { DAY_STATUS, hours, prescriptionText, sessionMeta, weekLabel, WEEK_KIND } from '../labels';
 import { SessionEditor, type EditorValue } from './SessionEditor';
-import { TemplateSheet } from './TemplateSheet';
+import { CustomizeSheet } from './CustomizeSheet';
 
 export function Plan({ data }: { data: Data }) {
   const current = mondayOf(data.today) < data.profile.startDate ? data.profile.startDate : mondayOf(data.today);
   const [weekStart, setWeekStart] = useState(current);
   const [selected, setSelected] = useState<number | null>(null);
   const [adding, setAdding] = useState<ISODate | null>(null);
-  const [template, setTemplate] = useState(false);
+  const [customize, setCustomize] = useState(false);
   const [preview, setPreview] = useState<{ week: WeekPlan; sessions: PlannedSession[] } | null>(null);
 
   const stored = data.weeks.find((w) => w.weekStart === weekStart);
@@ -40,7 +41,7 @@ export function Plan({ data }: { data: Data }) {
   return (
     <div className="screen">
       <header className="screen-head">
-        <p className="kicker num">{week ? `Phase ${ROMAN[week.phase]}, semaine ${week.weekInPhase}` : 'Plan'}</p>
+        <p className="kicker num">{week ? `${weekLabel(week)}, ${blockOf(week.programWeek).name}` : 'Plan'}</p>
         <h1>Plan de la semaine</h1>
       </header>
 
@@ -63,24 +64,32 @@ export function Plan({ data }: { data: Data }) {
         <section className="plate stack stack--tight">
           <div className="kpis">
             <div className="kpi">
-              <span className="num">{week.volumeTargetMin}′</span>
-              <span>volume progressif visé</span>
+              <span className="num">{hours(week.totalMin)}</span>
+              <span>volume estimé, EPS exclue</span>
             </div>
             <div className="kpi">
               <span className="num">{done}/{trainable.length}</span>
               <span>séances faites</span>
             </div>
             <div className="kpi">
-              <span className="num">{ROMAN[week.phase]}</span>
-              <span>{PHASES[week.phase].name}</span>
+              <span className="num">{weekLabel(week)}</span>
+              <span>{WEEK_KIND[week.kind].toLowerCase()}</span>
             </div>
           </div>
           <p className="small muted">{week.reason}</p>
+          {week.checkin && (
+            <p className="small">
+              Décision du dimanche : <b>{DECISION_LABEL[week.checkin.decision].toLowerCase()}</b>
+              {week.checkin.fatigue ? `, fatigue ${week.checkin.fatigue}/10` : ''}
+              {week.checkin.sleepH ? `, sommeil ${String(week.checkin.sleepH).replace('.', ',')} h` : ''}
+              {week.checkin.note ? `. ${week.checkin.note}` : ''}
+            </p>
+          )}
         </section>
       )}
 
-      <button className="btn btn--brass btn--block" onClick={() => setTemplate(true)}>
-        Modifier la semaine type
+      <button className="btn btn--brass btn--block" onClick={() => setCustomize(true)}>
+        Personnaliser le programme
       </button>
 
       <section>
@@ -128,7 +137,6 @@ export function Plan({ data }: { data: Data }) {
       {adding && (
         <Sheet title={`Ajouter, ${formatDay(adding).toLowerCase()}`} onClose={() => setAdding(null)}>
           <SessionEditor
-            mode="week"
             saveLabel="Ajouter au plan"
             initial={{ type: 'course', title: 'Course', details: '', durationMin: 30 }}
             onCancel={() => setAdding(null)}
@@ -139,7 +147,6 @@ export function Plan({ data }: { data: Data }) {
                 title: v.title,
                 details: v.details,
                 targets: { durationMin: v.type === 'repos' ? undefined : v.durationMin },
-                scalable: false,
                 exercises: v.type === 'force' ? v.exercises : undefined,
               });
               setAdding(null);
@@ -147,7 +154,7 @@ export function Plan({ data }: { data: Data }) {
           />
         </Sheet>
       )}
-      {template && <TemplateSheet data={data} phase={currentWeek?.phase ?? data.phase} volumeMin={currentWeek?.volumeTargetMin ?? 150} weekStart={current} onClose={() => setTemplate(false)} />}
+      {customize && <CustomizeSheet data={data} weekStart={currentWeek?.weekStart} onClose={() => setCustomize(false)} />}
     </div>
   );
 }
@@ -185,7 +192,7 @@ function SessionSheet({ session: s, onClose }: { session: PlannedSession; onClos
               {s.exercises.map((e) => (
                 <li key={e.name}>
                   <span>{e.name}</span>
-                  <span className="num">{e.sets}×{e.reps}{e.unit && e.unit !== 'reps' ? ` ${e.unit}` : ''}</span>
+                  <span className="num">{prescriptionText(e)}</span>
                 </li>
               ))}
             </ul>
@@ -206,6 +213,11 @@ function SessionSheet({ session: s, onClose }: { session: PlannedSession; onClos
                 {done ? 'Marquer comme non faite' : 'Cocher comme faite'}
               </button>
             </>
+          )}
+          {!done && s.alternative && (
+            <button className="btn btn--sm btn--block" onClick={async () => { await swapAlternative(s.id!); onClose(); }}>
+              Option : {s.alternative.title.toLowerCase()} à la place
+            </button>
           )}
           <div className="grid-2">
             <button className="btn btn--sm" disabled={isRest} onClick={() => setMode('move')}>Déplacer</button>
@@ -231,7 +243,6 @@ function SessionSheet({ session: s, onClose }: { session: PlannedSession; onClos
 
       {mode === 'edit' && (
         <SessionEditor
-          mode="week"
           initial={{ type: s.type, title: s.title, details: s.details, durationMin: s.targets.durationMin, exercises: s.exercises }}
           onCancel={() => setMode('view')}
           onSave={saveEdit}

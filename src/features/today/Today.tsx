@@ -1,23 +1,28 @@
-import { addDays, daysBetween, formatDay, formatShort, weekday, DAY_LONG } from '../../domain/dates';
-import { PHASES } from '../../domain/program';
+import { addDays, addWeeks, daysBetween, DAY_LONG, formatDay, formatShort, weekday } from '../../domain/dates';
+import { blockOf, fourthGrapplingBlocker, sheet } from '../../domain/programme';
 import { RANKS } from '../../domain/ranks';
-import { toggleDone, spendJoker } from '../../db/engine';
+import { exerciseHistory, suggestLoad } from '../../domain/strength';
+import { setFourthGrappling, spendJoker, swapAlternative, toggleDone } from '../../db/engine';
 import type { ExercisePrescription, LogEntry, PlannedSession } from '../../domain/types';
-import { exerciseHistory, suggestLoad, UNIT_LABEL } from '../../domain/strength';
 import { Insignia } from '../../ui/Insignia';
 import { Flame, Icons, TYPE_CODE } from '../../ui/kit';
 import { useUI, type Data } from '../../state';
-import { matricule, ROMAN, sessionMeta, WEEK_KIND } from '../labels';
+import { hours, matricule, prescriptionText, weekLabel, WEEK_KIND } from '../labels';
+import { CheckinCard } from './CheckinCard';
 
 export function Today({ data }: { data: Data }) {
   const { today, week, profile, streak, rank, logs } = data;
+  const ui = useUI();
   const sessions = data.planned.filter((p) => p.date === today);
   const painLog = [...logs].reverse().find((l) => l.pain && (l.date === today || l.date === addDays(today, -1)));
   const notStarted = profile.startDate > today;
   const exportAge = profile.lastExportAt ? (Date.now() - profile.lastExportAt) / 86_400_000 : Infinity;
   const needsExport = exportAge > 7 && daysBetween(profile.startDate, today) >= 3;
   const todayStatus = data.statuses.get(today);
-  const ui = useUI();
+  const block = week ? blockOf(week.programWeek) : data.block;
+
+  const prevWeek = week ? data.weeks.find((w) => w.weekStart === addWeeks(week.weekStart, -1)) : undefined;
+  const fourthBlocker = week ? fourthGrapplingBlocker(week, prevWeek, data.planned) : 'Aucune semaine en cours.';
 
   return (
     <div className="screen">
@@ -31,18 +36,32 @@ export function Today({ data }: { data: Data }) {
           <span><b>{formatDay(today)}</b></span>
           {week && (
             <>
-              <span>Phase {ROMAN[week.phase]}, {PHASES[week.phase].name}</span>
-              <span>Semaine {week.weekInPhase}, {WEEK_KIND[week.kind].toLowerCase()}</span>
+              <span>{weekLabel(week)}, {block.name}</span>
+              <span>{WEEK_KIND[week.kind]}</span>
+              <span>{hours(week.totalMin)} prévues</span>
             </>
           )}
           <span>{RANKS[rank].name}</span>
         </div>
       </header>
 
+      {data.programDone && (
+        <section className="plate notice notice--brass">
+          <h3>Programme terminé</h3>
+          <p className="muted">
+            58 semaines bouclées. Sans sélection proche : une semaine légère, puis un nouveau bloc choisi selon ton point faible
+            mesuré. Sélection proche : garde la fraîcheur et confirme les épreuves exactes.
+          </p>
+        </section>
+      )}
+
       {notStarted && (
         <section className="plate notice notice--brass">
           <h3>Départ le {formatDay(profile.startDate).toLowerCase()}</h3>
-          <p className="muted">Le plan de la semaine 1 est prêt dans l'onglet Plan. D'ici là, repos.</p>
+          <p className="muted">
+            La semaine 1 est prête dans l'onglet Plan. D'ici là, note tes repères de départ dans Dossier : tractions, 400 m crawl,
+            charges au couché et au squat.
+          </p>
         </section>
       )}
 
@@ -50,28 +69,33 @@ export function Today({ data }: { data: Data }) {
         <section className="plate plate--alert notice" role="status">
           <h3>Douleur signalée : {painLog.pain!.zone || 'zone non précisée'}</h3>
           <p>
-            Repos recommandé aujourd'hui. Les séances non faites ne cassent pas ton streak. Si la douleur persiste
-            plus de quelques jours, consulte un médecin.
+            Feu rouge si elle modifie le mouvement : arrête la séance concernée. Repos recommandé, les séances non faites ne cassent
+            pas ton streak. Si elle persiste, fais-la évaluer.
           </p>
         </section>
       )}
 
-      {week?.kind === 'forced-deload' && (
+      {week && (week.kind === 'forced-deload' || week.kind === 'repeat') && (
         <section className="plate plate--alert notice">
-          <h3>Semaine allégée imposée</h3>
-          <p className="muted">{week.reason} Volume réduit de 35 %.</p>
+          <h3>{week.kind === 'repeat' ? `${weekLabel(week)} répétée` : `Semaine allégée (fiche ${weekLabel(week)})`}</h3>
+          <p className="muted">{week.reason}</p>
         </section>
       )}
 
-      {data.checkpointDue && (
+      {data.bilanDue !== null && (
         <section className="plate notice notice--brass">
-          <h3>Tests de contrôle du mois {data.checkpointDue}</h3>
-          <p className="muted">Passe-les cette semaine, reposé. Leur réussite ouvre la phase suivante.</p>
+          <h3>Semaine de bilan</h3>
+          <p className="muted">
+            Lundi tractions, mercredi squat, jeudi course, vendredi épaules et trap bar, samedi 400 m crawl. Ne teste pas si tu es
+            malade, douloureux ou sous-récupéré.
+          </p>
           <button className="btn btn--brass btn--sm" onClick={() => ui.go('dossier')}>
-            Voir les tests
+            Noter les mesures
           </button>
         </section>
       )}
+
+      {data.checkin && <CheckinCard week={data.checkin.week} suggestion={data.checkin.suggestion} />}
 
       <StreakPlate data={data} />
 
@@ -98,9 +122,21 @@ export function Today({ data }: { data: Data }) {
         </div>
         {sessions.length === 0 && <p className="empty">Rien de prévu. Profite du repos.</p>}
         {sessions.map((s) => (
-          <SessionPlate key={s.id} session={s} resting={!!painLog} logs={logs} />
+          <SessionPlate key={s.id} session={s} resting={!!painLog} logs={logs} fourthBlocker={s.slotId === 'thursday' ? fourthBlocker : undefined} />
         ))}
+        {week?.fourthGrappling && sessions.some((s) => s.slotId === 'grappling4' && s.status !== 'done') && (
+          <button className="btn btn--ghost btn--block" onClick={() => setFourthGrappling(week.weekStart, false)}>
+            Revenir à la course du jeudi et à la piscine
+          </button>
+        )}
       </section>
+
+      {week && week.programWeek > 0 && sheet(week.programWeek).consigne && (
+        <section className="plate notice">
+          <h3>Consigne de la semaine</h3>
+          <p className="muted small">{sheet(week.programWeek).consigne}</p>
+        </section>
+      )}
 
       {needsExport && (
         <section className="plate notice">
@@ -136,7 +172,17 @@ function StreakPlate({ data }: { data: Data }) {
   );
 }
 
-function SessionPlate({ session: s, resting, logs }: { session: PlannedSession; resting: boolean; logs: LogEntry[] }) {
+function SessionPlate({
+  session: s,
+  resting,
+  logs,
+  fourthBlocker,
+}: {
+  session: PlannedSession;
+  resting: boolean;
+  logs: LogEntry[];
+  fourthBlocker?: string | null;
+}) {
   const ui = useUI();
   const done = s.status === 'done';
   const isRest = s.type === 'repos';
@@ -154,8 +200,9 @@ function SessionPlate({ session: s, resting, logs }: { session: PlannedSession; 
         {s.targets.durationMin ? <span className="num">{s.targets.durationMin}′</span> : null}
       </div>
       <div className="stack stack--tight">
+        {s.time && <p className="small kicker num">{s.time}</p>}
         <p className="session-details">{s.details}</p>
-        {sessionMeta(s) && s.type === 'marche' && <p className="small">{sessionMeta(s)}</p>}
+        {s.type === 'marche' && s.targets.loadKg ? <p className="small">Sac {s.targets.loadKg} kg maximum, ou sans charge.</p> : null}
         {s.exercises?.length && !done ? <ExerciseList exercises={s.exercises} history={logs.filter((l) => l.date < s.date)} /> : null}
         {isRest && <p className="small" style={{ color: 'var(--brass-bright)' }}>Repos prévu : le respecter compte comme un jour tenu.</p>}
       </div>
@@ -175,24 +222,34 @@ function SessionPlate({ session: s, resting, logs }: { session: PlannedSession; 
           </button>
         </div>
       )}
+      {!done && s.alternative && (
+        <button className="btn btn--ghost btn--sm" style={{ gridColumn: '1 / -1' }} onClick={() => swapAlternative(s.id!)}>
+          Option : {s.alternative.title.toLowerCase()} à la place
+        </button>
+      )}
+      {!done && fourthBlocker === null && (
+        <button className="btn btn--ghost btn--sm" style={{ gridColumn: '1 / -1' }} onClick={() => setFourthGrappling(s.weekStart, true)}>
+          Option : 4e grappling (20 h 20) à la place, sans piscine samedi
+        </button>
+      )}
     </article>
   );
 }
 
-/** Exercices prévus avec la charge proposée d'après l'historique. */
+/** Exercices prévus, avec la charge et les répétitions visées d'après l'historique. */
 function ExerciseList({ exercises, history }: { exercises: ExercisePrescription[]; history: LogEntry[] }) {
   return (
     <ul className="ex-list">
       {exercises.map((e) => {
         const sug = suggestLoad(exerciseHistory(history, e.name), e);
-        const unit = e.unit && e.unit !== 'reps' ? ` ${UNIT_LABEL[e.unit]}` : '';
+        const seen = exerciseHistory(history, e.name).length > 0;
         return (
           <li key={e.name}>
             <span>{e.name}</span>
             <span className="num">
-              {e.sets}×{sug.reps}
-              {unit}
-              {sug.kg ? ` à ${String(sug.kg).replace('.', ',')} kg` : ''}
+              {prescriptionText(e)}
+              {sug.kg ? ` · ${String(sug.kg).replace('.', ',')} kg` : ''}
+              {seen && (e.unit ?? 'reps') === 'reps' ? ` · vise ${sug.reps}` : ''}
               {sug.reason === 'progress' ? ' ↑' : ''}
             </span>
           </li>

@@ -7,20 +7,16 @@ export const SESSION_LABEL: Record<SessionType, string> = {
   grappling: 'Grappling',
   force: 'Force',
   natation: 'Natation',
-  marche: 'Marche chargée',
+  marche: 'Marche',
   mobilite: 'Mobilité',
   repos: 'Repos',
 };
-
-export type Phase = 1 | 2 | 3 | 4;
-
-export type WeekKind = 'normal' | 'deload' | 'forced-deload' | 'taper';
 
 export interface Pain {
   zone: string;
 }
 
-/** Unité d'une série : répétitions, secondes (gainage) ou mètres (farmer walk). */
+/** Unité d'une série : répétitions, secondes (chaise de Killy) ou mètres (porté fermier). */
 export type SetUnit = 'reps' | 's' | 'm';
 
 export interface SetEntry {
@@ -30,33 +26,21 @@ export interface SetEntry {
   unit?: SetUnit;
 }
 
-/** Exercice prescrit dans une séance de force. */
+/** Exercice prescrit : séries × plage de répétitions (reps = haut de plage). */
 export interface ExercisePrescription {
   name: string;
   sets: number;
   reps: number;
+  repsMin?: number;
   unit?: SetUnit;
+  /** « par jambe », « par côté » */
+  perSide?: string;
+  rest?: string;
+  note?: string;
+  /** série de référence d'une semaine de bilan */
+  bilan?: boolean;
   /** charge de départ, si l'historique est vide */
   kg?: number;
-}
-
-/** Ajustement automatique du contenu d'une séance selon la semaine. */
-export type AutoDetails = 'runWalk' | 'intervals' | 'ruck';
-
-/** Élément de la semaine type d'une phase (modifiable). */
-export interface TemplateItem {
-  id: string;
-  day: number; // 0 = lundi
-  type: SessionType;
-  title: string;
-  /** part du volume progressif ; 0 = durée fixe */
-  share: number;
-  fixedMin?: number;
-  maxMin?: number;
-  details: string;
-  auto?: AutoDetails;
-  exercises?: ExercisePrescription[];
-  simulation?: boolean;
 }
 
 /** Séance consignée dans le journal. Les champs présents dépendent du type. */
@@ -83,86 +67,102 @@ export interface PlannedTargets {
 
 export type PlannedStatus = 'planned' | 'done' | 'skipped';
 
+/** Créneaux de la semaine type du programme. */
+export type SlotId = 'A' | 'B' | 'C' | 'thursday' | 'friday' | 'swim' | 'sunday' | 'mobWed' | 'mobSun' | 'grappling' | 'grappling4' | 'rest' | 'custom';
+
+/** Variante proposée par la fiche (ex. marche à la place de la course du dimanche). */
+export interface SessionAlternative {
+  type: SessionType;
+  title: string;
+  details: string;
+  targets: PlannedTargets;
+}
+
 export interface PlannedSession {
   id?: number;
   weekStart: ISODate;
   date: ISODate;
   /** ordre d'affichage dans la journée */
   slot: number;
+  slotId?: SlotId;
+  /** horaire indicatif (« 16 h ») */
+  time?: string;
   type: SessionType;
   title: string;
   details: string;
   targets: PlannedTargets;
-  /** séance dont la durée suit la progression (≠ grappling, mobilité) */
-  scalable: boolean;
   exercises?: ExercisePrescription[];
-  /** séance spécifique simulation d'épreuves */
-  simulation?: boolean;
+  alternative?: SessionAlternative;
   status: PlannedStatus;
   logId?: number;
 }
 
+/** Décision du dimanche, telle que décrite dans le programme. */
+export type Decision = 'advance' | 'repeat' | 'lighten';
+
+export interface Checkin {
+  sleepH?: number;
+  fatigue?: number; // sur 10
+  decision: Decision;
+  note?: string;
+  at: number;
+}
+
+export type WeekKind = 'adaptation' | 'normal' | 'deload' | 'bilan' | 'taper' | 'forced-deload' | 'repeat';
+
 export interface WeekPlan {
   weekStart: ISODate;
-  phase: Phase;
-  weekInPhase: number; // 1-based
+  /** fiche utilisée (0 = semaines d'adaptation, 1 à 58) */
+  programWeek: number;
+  /** fiche prévue la semaine suivante si on avance */
+  nextProgramWeek: number;
   kind: WeekKind;
-  /** volume cible (minutes) des séances progressives */
-  volumeTargetMin: number;
-  /** volume de référence avant réduction (pour reprendre après un allègement) */
-  baseVolumeMin: number;
   reason: string;
+  /** volume estimé par la fiche (minutes, EPS exclue) */
+  totalMin: number;
+  /** semaines d'adaptation restantes, celle-ci comprise */
+  entryLeft?: number;
+  fourthGrappling?: boolean;
+  checkin?: Checkin;
 }
 
-export type TestKey = 'course' | 'tractions' | 'marche' | 'natation' | 'corde';
-
-export interface TestTargets {
-  /** course : temps max (s) sur courseKm */
-  courseKm: number;
-  courseSec: number;
-  tractions: number;
-  marcheKm: number;
-  marcheKg: number;
-  marcheSec: number;
-  natationM: number;
-  natationSec: number;
-  /** corde 7 m : sans les jambes ? */
-  cordeSansJambes: boolean;
+/** Charge × répétitions notée en bilan (effort sous-maximal comparable). */
+export interface LoadReps {
+  kg?: number;
+  reps?: number;
 }
 
-export interface TestResults {
-  courseSec?: number;
-  tractions?: number;
-  marcheSec?: number;
-  natationSec?: number;
-  corde?: boolean;
-}
-
-export type CheckpointMonth = 4 | 8 | 12 | 14;
-
-export interface CheckpointRecord {
-  id?: number;
-  month: CheckpointMonth;
+export interface BilanRecord {
+  /** « S00 » à « S58 » (une clé texte : Dexie ne suit pas les clés numériques à 0) */
+  id?: string;
+  /** semaine de bilan (0 = repères de départ) */
+  programWeek: number;
   date: ISODate;
-  results: TestResults;
-  passed: Record<TestKey, boolean>;
-  allPassed: boolean;
-  /** semaines de prolongation choisies après un échec */
-  extensionWeeks?: number;
+  pullups?: number;
+  runTest?: '6min' | 'luc-leger';
+  /** mètres en 6 min, ou palier Luc Léger */
+  runValue?: number;
+  swim400Sec?: number;
+  bench?: LoadReps;
+  squat?: LoadReps;
+  ohp?: LoadReps;
+  trapbar?: LoadReps;
+  sleepH?: number;
+  note?: string;
 }
 
 export interface Profile {
   id: 'me';
-  startDate: ISODate; // lundi de la semaine 1
+  /** lundi de la première semaine (adaptation comprise) */
+  startDate: ISODate;
   grapplingDays: number[]; // 0 = lundi
-  grapplingMin: number;
-  /** début effectif de chaque phase (la phase 1 = startDate) */
-  phaseStarts: Partial<Record<Phase, ISODate>>;
-  /** semaines ajoutées à chaque phase après un test manqué */
-  extensions: Partial<Record<Phase, number>>;
-  targets: Record<CheckpointMonth, TestTargets>;
-  /** semaines types personnalisées (sinon modèle par défaut) */
-  templates?: Partial<Record<Phase, TemplateItem[]>>;
+  /** semaines d'adaptation (« version d'entrée ») avant S01 */
+  entryWeeks: number;
+  /** jour choisi pour un créneau, s'il diffère de la fiche */
+  slotDays: Partial<Record<SlotId, number>>;
+  disabledSlots: SlotId[];
+  /** variante choisie pour un exercice (ex. squat → goblet squat) */
+  exerciseSubs: Record<string, string>;
   lastExportAt?: number;
   createdAt: number;
 }

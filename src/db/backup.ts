@@ -2,7 +2,7 @@
 import { db, TABLES, type MatriculeDB, type TableName } from './schema';
 
 export const BACKUP_FORMAT = 'matricule-backup';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 
 export interface Backup {
   format: typeof BACKUP_FORMAT;
@@ -27,6 +27,9 @@ export function parseBackup(text: string): Backup {
   const b = json as Partial<Backup>;
   if (b?.format !== BACKUP_FORMAT || typeof b.version !== 'number' || !b.data) {
     throw new Error("Ce fichier n'est pas une sauvegarde Matricule.");
+  }
+  if (b.version < BACKUP_VERSION) {
+    throw new Error("Sauvegarde de l'ancien programme (4 phases) : elle ne correspond pas au programme 58 semaines.");
   }
   if (b.version > BACKUP_VERSION) {
     throw new Error("Sauvegarde créée par une version plus récente de l'app. Mets l'app à jour puis réessaie.");

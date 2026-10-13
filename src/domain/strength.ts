@@ -1,26 +1,45 @@
 // Musculation : historique par exercice, records, 1RM estimé et charge proposée.
 import type { ISODate } from './dates';
-import type { ExercisePrescription, LogEntry, SetEntry, SetUnit, TemplateItem } from './types';
+import type { ExercisePrescription, LogEntry, SetEntry, SetUnit } from './types';
 
-export const LOAD_STEP = 2.5;
-/** Au-delà de ce RPE de séance, on ne monte pas la charge. */
+/** Plus petit palier : souvent 1 à 2 kg au total en haut du corps, 2 à 5 kg en bas. */
+export const UPPER_STEP = 1;
+export const LOWER_STEP = 2.5;
+/** Pas de saisie des charges dans le journal. */
+export const LOAD_STEP = 1;
+/** Au-delà de ce RPE de séance, la réserve demandée (RIR) n'est plus respectée. */
 export const MAX_RPE_TO_PROGRESS = 8;
+
+const LOWER_BODY = /squat|soulevé|fente|trap bar|kettlebell|mollets|leg curl|chaise|presse|porté|farmer/i;
+
+export function loadStep(name: string): number {
+  return LOWER_BODY.test(name) ? LOWER_STEP : UPPER_STEP;
+}
 
 export const UNIT_LABEL: Record<SetUnit, string> = { reps: 'reps', s: 's', m: 'm' };
 
+/** Exercices du programme, puis quelques classiques pour les séances ajoutées. */
 export const COMMON_EXERCISES: { name: string; unit: SetUnit }[] = [
-  { name: 'Tractions strictes', unit: 'reps' },
-  { name: 'Pompes', unit: 'reps' },
-  { name: 'Dips', unit: 'reps' },
-  { name: 'Squat', unit: 'reps' },
-  { name: 'Soulevé de terre', unit: 'reps' },
   { name: 'Développé couché', unit: 'reps' },
-  { name: 'Développé militaire', unit: 'reps' },
-  { name: 'Rowing barre', unit: 'reps' },
-  { name: 'Fentes', unit: 'reps' },
-  { name: 'Corde (montées)', unit: 'reps' },
-  { name: 'Gainage', unit: 's' },
-  { name: 'Farmer walk', unit: 'm' },
+  { name: 'Tractions pronation / assistées', unit: 'reps' },
+  { name: 'Squat (variante conservée)', unit: 'reps' },
+  { name: 'Soulevé de terre roumain', unit: 'reps' },
+  { name: 'Trap bar / kettlebell surélevée', unit: 'reps' },
+  { name: 'Développé épaules haltères', unit: 'reps' },
+  { name: 'Tirage vertical pronation', unit: 'reps' },
+  { name: 'Développé incliné haltères', unit: 'reps' },
+  { name: 'Rowing poitrine appuyée', unit: 'reps' },
+  { name: 'Élévations latérales', unit: 'reps' },
+  { name: 'Curl biceps', unit: 'reps' },
+  { name: 'Extension triceps', unit: 'reps' },
+  { name: 'Fente arrière', unit: 'reps' },
+  { name: 'Goblet squat', unit: 'reps' },
+  { name: 'Pompes (hauteur adaptée)', unit: 'reps' },
+  { name: 'Mollets debout', unit: 'reps' },
+  { name: 'Dead bug', unit: 'reps' },
+  { name: 'Chaise de Killy', unit: 's' },
+  { name: 'Porté fermier', unit: 'm' },
+  { name: 'Dips', unit: 'reps' },
 ];
 
 export interface ExerciseSession {
@@ -92,47 +111,74 @@ export function records(history: ExerciseSession[]): ExerciseRecord {
 
 export interface LoadSuggestion {
   kg?: number;
+  /** répétitions visées pour la prochaine séance */
   reps: number;
-  reason: 'start' | 'progress' | 'hold' | 'bodyweight';
+  reason: 'start' | 'progress' | 'reps' | 'confirm' | 'hold' | 'bodyweight';
   text: string;
 }
 
-const fmtKg = (kg: number) => `${String(kg).replace('.', ',')} kg`;
+const fmtKg = (kg: number) => `${String(+kg.toFixed(2)).replace('.', ',')} kg`;
+
+export const rangeText = (p: ExercisePrescription) => (p.repsMin && p.repsMin !== p.reps ? `${p.repsMin}-${p.reps}` : `${p.reps}`);
+
+/** Toutes les séries de travail au haut de plage, avec la réserve respectée (RPE de séance ≤ 8). */
+function atTop(session: ExerciseSession, p: ExercisePrescription): boolean {
+  const working = session.sets.filter((s) => (s.kg ?? 0) >= session.topKg);
+  const comfortable = session.rpe === undefined || session.rpe <= MAX_RPE_TO_PROGRESS;
+  const needed = p.bilan ? 1 : p.sets;
+  return comfortable && working.length >= needed && working.every((s) => s.reps >= p.reps);
+}
 
 /**
- * Charge proposée pour la prochaine séance : on monte de 2,5 kg quand toutes les séries
- * prévues ont été réussies à la dernière séance avec un RPE ≤ 8, sinon on garde la charge.
+ * Double progression du programme : on monte d'abord les répétitions dans la plage ;
+ * après deux séances réussies au haut de plage avec la réserve demandée, on ajoute le plus petit palier.
  */
 export function suggestLoad(history: ExerciseSession[], p: ExercisePrescription): LoadSuggestion {
+  const range = rangeText(p);
+  const low = p.repsMin ?? p.reps;
   const last = history.at(-1);
   if (!last) {
     return p.kg
-      ? { kg: p.kg, reps: p.reps, reason: 'start', text: `Charge de départ : ${fmtKg(p.kg)}.` }
-      : { reps: p.reps, reason: 'bodyweight', text: 'Première fois : note tes séries.' };
+      ? { kg: p.kg, reps: low, reason: 'start', text: `Charge de départ : ${fmtKg(p.kg)}, ${range} répétitions avec la réserve demandée.` }
+      : { reps: low, reason: 'start', text: `Choisis une charge qui laisse la réserve demandée sur ${range} répétitions.` };
   }
-  const working = last.sets.filter((s) => (s.kg ?? 0) >= last.topKg);
-  const hit = working.filter((s) => s.reps >= p.reps).length >= p.sets;
-  const comfortable = last.rpe === undefined || last.rpe <= MAX_RPE_TO_PROGRESS;
 
-  if (last.topKg <= 0) {
-    const unit = p.unit ?? 'reps';
-    const step = unit === 's' ? 5 : unit === 'm' ? 10 : 1;
-    const more = unit === 'reps' ? '1 répétition de plus ou ajoute du lest' : `${step} ${UNIT_LABEL[unit]} de plus`;
-    const text = hit && comfortable ? `Toutes les séries réussies : vise ${more}.` : `Vise l'objectif prévu.`;
-    return { reps: hit && comfortable ? p.reps + step : p.reps, reason: 'bodyweight', text };
+  const unit = p.unit ?? 'reps';
+  if (unit !== 'reps') {
+    return { kg: last.topKg || undefined, reps: p.reps, reason: 'hold', text: `Objectif ${p.reps} ${UNIT_LABEL[unit]}${last.topKg ? `, ${fmtKg(last.topKg)} la dernière fois` : ''}.` };
   }
-  if (hit && comfortable) {
-    const kg = last.topKg + LOAD_STEP;
-    return { kg, reps: p.reps, reason: 'progress', text: `Séries réussies la dernière fois à ${fmtKg(last.topKg)} : passe à ${fmtKg(kg)}.` };
+
+  const kg = last.topKg;
+  const prev = history.at(-2);
+  const lastTop = atTop(last, p);
+  const prevTop = !!prev && prev.topKg === kg && atTop(prev, p);
+
+  if (kg <= 0) {
+    if (lastTop && prevTop) {
+      return { reps: p.reps, reason: 'bodyweight', text: `Haut de plage atteint deux fois : ajoute un petit lest (ou réduis l'assistance).` };
+    }
+    const target = Math.min(p.reps, Math.max(low, Math.min(...last.sets.map((s) => s.reps)) + 1));
+    return { reps: target, reason: 'bodyweight', text: `Vise ${target} répétitions propres (plage ${range}).` };
   }
-  const why = !hit ? 'séries incomplètes' : `RPE ${last.rpe}`;
-  return { kg: last.topKg, reps: p.reps, reason: 'hold', text: `Dernière fois ${fmtKg(last.topKg)} (${why}) : garde la charge.` };
+
+  if (lastTop && prevTop) {
+    const next = kg + loadStep(p.name);
+    return { kg: next, reps: low, reason: 'progress', text: `Deux séances au haut de plage à ${fmtKg(kg)} : passe à ${fmtKg(next)}, ${range} répétitions.` };
+  }
+  if (lastTop) {
+    return { kg, reps: p.reps, reason: 'confirm', text: `Haut de plage atteint à ${fmtKg(kg)} : confirme-le une fois, puis la charge montera.` };
+  }
+  if (last.rpe !== undefined && last.rpe > MAX_RPE_TO_PROGRESS) {
+    return { kg, reps: low, reason: 'hold', text: `Dernière séance trop dure (RPE ${last.rpe}) : garde ${fmtKg(kg)} et la réserve demandée.` };
+  }
+  const target = Math.min(p.reps, Math.max(low, Math.min(...last.sets.filter((s) => (s.kg ?? 0) >= kg).map((s) => s.reps)) + 1));
+  return { kg, reps: target, reason: 'reps', text: `Garde ${fmtKg(kg)} et vise ${target} répétitions (plage ${range}).` };
 }
 
-/** Tous les exercices connus : base, semaines types et historique. */
-export function knownExercises(logs: LogEntry[], templates: TemplateItem[][]): { name: string; unit: SetUnit }[] {
+/** Tous les exercices connus : base, séances prévues et historique. */
+export function knownExercises(logs: LogEntry[], prescribed: ExercisePrescription[] = []): { name: string; unit: SetUnit }[] {
   const map = new Map<string, SetUnit>(COMMON_EXERCISES.map((e) => [e.name, e.unit]));
-  for (const t of templates.flat()) for (const e of t.exercises ?? []) if (!map.has(e.name)) map.set(e.name, e.unit ?? 'reps');
+  for (const e of prescribed) if (!map.has(e.name)) map.set(e.name, e.unit ?? 'reps');
   for (const l of logs) for (const s of l.sets ?? []) if (!map.has(s.exercise)) map.set(s.exercise, s.unit ?? 'reps');
   return [...map.entries()].map(([name, unit]) => ({ name, unit }));
 }

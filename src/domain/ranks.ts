@@ -1,5 +1,4 @@
-// Grades débloqués par l'assiduité (semaines tenues) et les tests de contrôle réussis.
-import type { CheckpointMonth } from './types';
+// Grades débloqués par l'assiduité (semaines tenues) et les bilans réalisés.
 
 export type InsigniaKind =
   | { kind: 'none' }
@@ -9,7 +8,8 @@ export type InsigniaKind =
 export interface Rank {
   name: string;
   heldWeeks: number;
-  checkpoint?: CheckpointMonth;
+  /** semaine de bilan qui doit être réalisée */
+  bilan?: number;
   programDone?: boolean;
   insignia: InsigniaKind;
 }
@@ -18,27 +18,28 @@ export const RANKS: Rank[] = [
   { name: 'Soldat de 2e classe', heldWeeks: 0, insignia: { kind: 'none' } },
   { name: 'Soldat de 1re classe', heldWeeks: 2, insignia: { kind: 'chevrons', count: 1, color: 'red' } },
   { name: 'Caporal', heldWeeks: 4, insignia: { kind: 'chevrons', count: 2, color: 'red' } },
-  { name: 'Caporal-chef', heldWeeks: 8, insignia: { kind: 'chevrons', count: 3, color: 'red' } },
-  { name: 'Sergent', heldWeeks: 12, checkpoint: 4, insignia: { kind: 'chevrons', count: 2, color: 'brass' } },
-  { name: 'Sergent-chef', heldWeeks: 20, insignia: { kind: 'chevrons', count: 3, color: 'brass' } },
-  { name: 'Adjudant', heldWeeks: 28, checkpoint: 8, insignia: { kind: 'bars', count: 1, red: 'stripe' } },
-  { name: 'Adjudant-chef', heldWeeks: 36, insignia: { kind: 'bars', count: 1, red: 'stripe', wide: true } },
-  { name: 'Major', heldWeeks: 44, checkpoint: 12, insignia: { kind: 'bars', count: 1, red: 'edge', wide: true } },
-  { name: 'Aspirant', heldWeeks: 50, insignia: { kind: 'bars', count: 1, red: 'dashed' } },
-  { name: 'Sous-lieutenant', heldWeeks: 54, checkpoint: 14, insignia: { kind: 'bars', count: 1 } },
-  { name: 'Lieutenant', heldWeeks: 58, programDone: true, insignia: { kind: 'bars', count: 2 } },
+  { name: 'Caporal-chef', heldWeeks: 7, bilan: 8, insignia: { kind: 'chevrons', count: 3, color: 'red' } },
+  { name: 'Sergent', heldWeeks: 12, bilan: 16, insignia: { kind: 'chevrons', count: 2, color: 'brass' } },
+  { name: 'Sergent-chef', heldWeeks: 18, bilan: 24, insignia: { kind: 'chevrons', count: 3, color: 'brass' } },
+  { name: 'Adjudant', heldWeeks: 24, bilan: 32, insignia: { kind: 'bars', count: 1, red: 'stripe' } },
+  { name: 'Adjudant-chef', heldWeeks: 30, bilan: 40, insignia: { kind: 'bars', count: 1, red: 'stripe', wide: true } },
+  { name: 'Major', heldWeeks: 36, bilan: 48, insignia: { kind: 'bars', count: 1, red: 'edge', wide: true } },
+  { name: 'Aspirant', heldWeeks: 42, insignia: { kind: 'bars', count: 1, red: 'dashed' } },
+  { name: 'Sous-lieutenant', heldWeeks: 46, bilan: 56, insignia: { kind: 'bars', count: 1 } },
+  { name: 'Lieutenant', heldWeeks: 50, bilan: 58, programDone: true, insignia: { kind: 'bars', count: 2 } },
 ];
 
 export interface RankProgress {
   heldWeeks: number;
-  passed: ReadonlySet<CheckpointMonth>;
+  /** semaines de bilan réalisées */
+  bilans: ReadonlySet<number>;
   programDone: boolean;
 }
 
 export function meets(rank: Rank, p: RankProgress): boolean {
   return (
     p.heldWeeks >= rank.heldWeeks &&
-    (!rank.checkpoint || p.passed.has(rank.checkpoint)) &&
+    (!rank.bilan || p.bilans.has(rank.bilan)) &&
     (!rank.programDone || p.programDone)
   );
 }
@@ -52,7 +53,7 @@ export function currentRank(p: RankProgress): number {
 
 export function requirementText(rank: Rank): string {
   const parts = [`${rank.heldWeeks} semaines tenues`];
-  if (rank.checkpoint) parts.push(`test du mois ${rank.checkpoint} réussi`);
+  if (rank.bilan) parts.push(`bilan S${String(rank.bilan).padStart(2, '0')} réalisé`);
   if (rank.programDone) parts.push('programme terminé');
   return parts.join(', ');
 }

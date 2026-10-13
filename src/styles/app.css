@@ -676,3 +676,15 @@ details summary { cursor: pointer; min-height: 32px; }
 
 .pr { color: var(--brass-bright); font-family: var(--font-stencil); font-weight: 700; letter-spacing: 0.04em; }
 .grid-3 { display: grid; grid-template-columns: 0.8fr 1fr 1.2fr; gap: 6px; }
+.session-details { white-space: pre-line; }
+.slot-row { display: grid; grid-template-columns: 1fr 112px auto; gap: 6px; align-items: center; padding: 4px 0; }
+.slot-row select { min-height: 44px; padding: 6px 8px; appearance: none; -webkit-appearance: none; }
+.bilan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.bilan-grid > div { display: grid; gap: 2px; }
+.bilan-grid .num { font-size: var(--step-1); }
+.trend { font-size: 15px; margin-left: 2px; }
+.trend--1 { color: var(--ok); }
+.trend--0 { color: var(--bone-dim); }
+.trend---1 { color: var(--blood-bright); }
+.table-scroll { overflow-x: auto; margin: 0 calc(var(--gutter) * -1); padding: 0 var(--gutter); }
+.table-scroll .table td, .table-scroll .table th { white-space: nowrap; }

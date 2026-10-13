@@ -8,7 +8,8 @@ import {
   UNIT_LABEL,
   type ExerciseSession,
 } from '../../domain/strength';
-import type { ExercisePrescription, LogEntry, SetEntry, SetUnit, TemplateItem } from '../../domain/types';
+import type { ExercisePrescription, LogEntry, SetEntry, SetUnit } from '../../domain/types';
+import { prescriptionText } from '../labels';
 import { MiniStepper } from '../../ui/kit';
 
 export interface ExerciseGroup {
@@ -50,16 +51,16 @@ export function StrengthLog({
   groups,
   onChange,
   history,
-  templates,
+  prescribed = [],
 }: {
   groups: ExerciseGroup[];
   onChange: (g: ExerciseGroup[]) => void;
   /** séances antérieures (hors séance en cours) */
   history: LogEntry[];
-  templates: TemplateItem[][];
+  prescribed?: ExercisePrescription[];
 }) {
   const [custom, setCustom] = useState('');
-  const known = knownExercises(history, templates).filter((e) => !groups.some((g) => g.name === e.name));
+  const known = knownExercises(history, prescribed).filter((e) => !groups.some((g) => g.name === e.name));
 
   const update = (i: number, g: ExerciseGroup) => onChange(groups.map((x, k) => (k === i ? g : x)));
   const add = (name: string, unit: SetUnit = 'reps') => {
@@ -123,9 +124,12 @@ function ExerciseBlock({
       <div className="exercise-head">
         <span className="exercise-name">{g.name}</span>
         <span className="small muted" style={{ whiteSpace: 'nowrap' }}>
-          {g.prescription ? `prévu ${g.prescription.sets}×${g.prescription.reps}${g.unit === 'reps' ? '' : ` ${unit}`}` : ''}
+          {g.prescription ? prescriptionText(g.prescription) : ''}
         </span>
       </div>
+      {g.prescription && (g.prescription.rest || g.prescription.note) && (
+        <p className="small muted">{[g.prescription.note, g.prescription.rest ? `repos ${g.prescription.rest}` : ''].filter(Boolean).join(' · ')}</p>
+      )}
       {sug && <p className={`exercise-hint ${sug.reason === 'progress' ? 'exercise-hint--up' : ''}`}>{sug.text}</p>}
       {!sug && last && (
         <p className="exercise-hint">

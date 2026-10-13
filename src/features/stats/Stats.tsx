@@ -1,5 +1,5 @@
 import { addWeeks, formatDuration, formatShort, mondayOf, weekDays } from '../../domain/dates';
-import { TEST_KEYS, TEST_LABEL } from '../../domain/checkpoints';
+import { BILAN_KEYS, BILAN_LABEL, bilanValue, filledCount } from '../../domain/bilans';
 import { KEPT, type DayStatus } from '../../domain/streak';
 import { SESSION_LABEL } from '../../domain/types';
 import type { Data } from '../../state';
@@ -101,25 +101,31 @@ export function Stats({ data }: { data: Data }) {
         <StrengthProgress logs={logs} />
       </section>
 
-      {data.checkpoints.length > 0 && (
+      {data.bilans.some((b) => filledCount(b) > 0) && (
         <section className="stack">
-          <h2>Chronos des tests</h2>
-          <table className="table">
-            <thead><tr><th>Épreuve</th>{data.checkpoints.map((c) => <th key={c.id}>M{c.month}</th>)}</tr></thead>
-            <tbody>
-              {TEST_KEYS.map((k) => (
-                <tr key={k}>
-                  <td>{TEST_LABEL[k]}</td>
-                  {data.checkpoints.map((c) => {
-                    const r = c.results;
-                    const v = k === 'course' ? r.courseSec : k === 'marche' ? r.marcheSec : k === 'natation' ? r.natationSec : undefined;
-                    const text = k === 'tractions' ? (r.tractions ?? '—') : k === 'corde' ? (r.corde ? 'Oui' : 'Non') : v !== undefined ? formatDuration(v) : '—';
-                    return <td key={c.id} className={c.passed[k] ? '' : 'ko'}>{text}</td>;
-                  })}
+          <h2>Tableau des bilans</h2>
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Repère</th>
+                  {data.bilans.filter((b) => filledCount(b) > 0).map((b) => (
+                    <th key={b.programWeek}>{b.programWeek === 0 ? 'Départ' : `S${String(b.programWeek).padStart(2, '0')}`}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {BILAN_KEYS.map((k) => (
+                  <tr key={k}>
+                    <td>{BILAN_LABEL[k]}</td>
+                    {data.bilans.filter((b) => filledCount(b) > 0).map((b) => (
+                      <td key={b.programWeek}>{bilanValue(b, k)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 

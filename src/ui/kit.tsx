@@ -92,10 +92,8 @@ export function Stepper({
   unit?: string;
   decimals?: number;
 }) {
-  const bump = (dir: 1 | -1) => {
-    const next = Math.max(min, +((value ?? 0) + dir * step).toFixed(decimals));
-    onChange(next);
-  };
+  const [text, setText] = useNumberText(value);
+  const bump = (dir: 1 | -1) => onChange(Math.max(min, +((value ?? 0) + dir * step).toFixed(decimals)));
   return (
     <div className="field">
       <span className="field-label">{label}</span>
@@ -106,13 +104,13 @@ export function Stepper({
         <input
           inputMode={decimals ? 'decimal' : 'numeric'}
           aria-label={label}
-          value={value ?? ''}
+          value={text}
           placeholder="—"
           onChange={(e) => {
-            const raw = e.target.value.replace(',', '.');
-            if (raw === '') return onChange(undefined);
-            const n = Number(raw);
-            if (!Number.isNaN(n)) onChange(n);
+            const n = parseNumber(e.target.value);
+            if (n !== undefined && Number.isNaN(n)) return;
+            setText(e.target.value);
+            onChange(n);
           }}
         />
         <button type="button" onClick={() => bump(1)} aria-label={`${label} : plus ${step}`}>
@@ -197,13 +195,7 @@ export function MiniStepper({
   suffix?: string;
   placeholder?: string;
 }) {
-  // Texte local : permet de taper « 42, » puis « 42,5 » sans perdre la virgule.
-  const fmt = (v: number | undefined) => (v === undefined ? '' : String(v).replace('.', ','));
-  const parse = (t: string) => (t.trim() === '' ? undefined : Number(t.replace(',', '.')));
-  const [text, setText] = useState(fmt(value));
-  useEffect(() => {
-    if (parse(text) !== value) setText(fmt(value));
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [text, setText] = useNumberText(value);
   const bump = (dir: 1 | -1) => onChange(Math.max(0, +((value ?? 0) + dir * step).toFixed(decimals)));
   return (
     <div className="mini-stepper">
@@ -215,10 +207,9 @@ export function MiniStepper({
           value={text}
           placeholder={placeholder}
           onChange={(e) => {
-            const t = e.target.value;
-            const n = parse(t);
+            const n = parseNumber(e.target.value);
             if (n !== undefined && Number.isNaN(n)) return;
-            setText(t);
+            setText(e.target.value);
             onChange(n);
           }}
         />
@@ -227,4 +218,16 @@ export function MiniStepper({
       <button type="button" onClick={() => bump(1)} aria-label={`${label} : plus ${step}`}>+</button>
     </div>
   );
+}
+
+const formatNumber = (v: number | undefined) => (v === undefined ? '' : String(v).replace('.', ','));
+const parseNumber = (t: string) => (t.trim() === '' ? undefined : Number(t.replace(',', '.')));
+
+/** Texte local d'un champ numérique : permet de taper « 42, » puis « 42,5 » sans perdre la virgule. */
+function useNumberText(value: number | undefined) {
+  const [text, setText] = useState(formatNumber(value));
+  useEffect(() => {
+    if (parseNumber(text) !== value) setText(formatNumber(value));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  return [text, setText] as const;
 }

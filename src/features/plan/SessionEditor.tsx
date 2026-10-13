@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { DAY_SHORT } from '../../domain/dates';
 import { COMMON_EXERCISES } from '../../domain/strength';
 import { SESSION_LABEL, type ExercisePrescription, type SessionType, type SetUnit } from '../../domain/types';
 import { MiniStepper, Stepper, TYPE_CODE } from '../../ui/kit';
@@ -10,25 +9,18 @@ export interface EditorValue {
   details: string;
   durationMin?: number;
   exercises?: ExercisePrescription[];
-  /** semaine type uniquement */
-  day?: number;
-  progressive?: boolean;
-  autoLabel?: string;
-  keepAuto?: boolean;
 }
 
 const TYPES: SessionType[] = ['course', 'grappling', 'force', 'natation', 'marche', 'mobilite', 'repos'];
 const UNITS: SetUnit[] = ['reps', 's', 'm'];
 
 export function SessionEditor({
-  mode,
   initial,
   saveLabel = 'Enregistrer',
   onSave,
   onCancel,
   onDelete,
 }: {
-  mode: 'week' | 'template';
   initial: EditorValue;
   saveLabel?: string;
   onSave: (v: EditorValue) => void;
@@ -57,58 +49,12 @@ export function SessionEditor({
         </div>
       </div>
 
-      {mode === 'template' && (
-        <div className="field">
-          <span className="field-label">Jour</span>
-          <div className="chips chips--days">
-            {DAY_SHORT.map((d, i) => (
-              <button key={d} type="button" className="chip" aria-pressed={v.day === i} onClick={() => set({ day: i })}>
-                {d}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="field">
         <label className="field-label" htmlFor="ed-title">Intitulé</label>
         <input id="ed-title" className="text-input" value={v.title} onChange={(e) => set({ title: e.target.value })} />
       </div>
 
-      {v.type !== 'repos' && (
-        <>
-          {mode === 'template' && (
-            <div className="field">
-              <span className="field-label">Durée</span>
-              <div className="toggle-row">
-                <button type="button" aria-pressed={!!v.progressive} onClick={() => set({ progressive: true })}>
-                  Suit la progression
-                </button>
-                <button type="button" aria-pressed={!v.progressive} onClick={() => set({ progressive: false })}>
-                  Durée fixe
-                </button>
-              </div>
-            </div>
-          )}
-          <Stepper
-            label={mode === 'template' && v.progressive ? 'Durée cette semaine' : 'Durée prévue'}
-            unit={mode === 'template' && v.progressive ? 'minutes, puis +10 % max par semaine avec le volume' : 'minutes'}
-            value={v.durationMin}
-            onChange={(d) => set({ durationMin: d })}
-            step={5}
-          />
-        </>
-      )}
-
-      {v.autoLabel && (
-        <div className="field">
-          <span className="field-label">Contenu ajusté chaque semaine : {v.autoLabel.toLowerCase()}</span>
-          <div className="toggle-row">
-            <button type="button" aria-pressed={!!v.keepAuto} onClick={() => set({ keepAuto: true })}>Garder</button>
-            <button type="button" aria-pressed={!v.keepAuto} onClick={() => set({ keepAuto: false })}>Texte libre seul</button>
-          </div>
-        </div>
-      )}
+      {v.type !== 'repos' && <Stepper label="Durée prévue" unit="minutes" value={v.durationMin} onChange={(d) => set({ durationMin: d })} step={5} />}
 
       <div className="field">
         <label className="field-label" htmlFor="ed-details">Contenu, consignes</label>
@@ -184,8 +130,8 @@ function ExercisesEditor({ value, onChange }: { value: ExercisePrescription[]; o
               <MiniStepper label={`${e.name} : séries`} value={e.sets} onChange={(n) => update(i, { sets: Math.max(1, n ?? 1) })} />
             </div>
             <div className="stack stack--tight">
-              <span className="small muted">{e.unit === 's' ? 'Secondes' : e.unit === 'm' ? 'Mètres' : 'Répétitions'}</span>
-              <MiniStepper label={`${e.name} : objectif`} value={e.reps} onChange={(n) => update(i, { reps: n ?? 0 })} step={e.unit === 'reps' || !e.unit ? 1 : 5} />
+              <span className="small muted">{e.unit === 's' ? 'Secondes' : e.unit === 'm' ? 'Mètres' : 'Haut de plage'}</span>
+              <MiniStepper label={`${e.name} : objectif`} value={e.reps} onChange={(n) => update(i, { reps: n ?? 0, repsMin: e.repsMin && n !== undefined ? Math.min(e.repsMin, n) : e.repsMin })} step={e.unit === 'reps' || !e.unit ? 1 : 5} />
             </div>
             <div className="stack stack--tight">
               <span className="small muted">Charge de départ</span>
@@ -204,7 +150,7 @@ function ExercisesEditor({ value, onChange }: { value: ExercisePrescription[]; o
       <button type="button" className="btn btn--sm btn--block" onClick={() => onChange([...value, { name: '', sets: 3, reps: 8, unit: 'reps' }])}>
         + Ajouter un exercice
       </button>
-      <p className="small muted">En séance, la charge proposée suit ton historique : +2,5 kg quand toutes les séries ont été réussies.</p>
+      <p className="small muted">En séance, la charge proposée suit ton historique : les répétitions montent dans la plage, puis le plus petit palier après deux séances au haut de plage.</p>
     </div>
   );
 }

@@ -35,6 +35,8 @@ export default defineConfig({
       },
     }),
   ],
+  // Les 58 fiches du programme sont embarquées pour fonctionner hors ligne (~140 Ko gzip au total).
+  build: { chunkSizeWarningLimit: 800 },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],

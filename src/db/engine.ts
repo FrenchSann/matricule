@@ -1,18 +1,30 @@
-// Opérations métier sur la base : génération des semaines, journal, plan, tests, jokers.
+// Opérations métier sur la base : semaines du programme, journal, plan, options, bilans, jokers.
 import { addWeeks, mondayOf, today as todayISO, type ISODate } from '../domain/dates';
-import { advancePhase, evaluate, extendPhase } from '../domain/checkpoints';
-import { buildWeekSessions, createProfile, CHECKPOINT_PHASE } from '../domain/program';
-import { planNextWeek, reviewWeek } from '../domain/progression';
+import { planNextWeek, reviewWeek, type WeekReview } from '../domain/cursor';
+import { buildWeekSessions, createProfile, sheet } from '../domain/programme';
 import { exerciseHistory, suggestLoad } from '../domain/strength';
-import type { CheckpointMonth, CheckpointRecord, ExercisePrescription, LogEntry, Phase, PlannedSession, SetEntry, TemplateItem, TestResults, WeekPlan } from '../domain/types';
+import type { BilanRecord, Checkin, ExercisePrescription, LogEntry, PlannedSession, Profile, SetEntry, WeekPlan } from '../domain/types';
 import { db } from './schema';
 
-export async function createProgram(startDate: ISODate, grapplingDays: number[]) {
-  await db.profile.put(createProfile(startDate, grapplingDays));
+export async function createProgram(startDate: ISODate, grapplingDays: number[], entryWeeks: number) {
+  await db.profile.put(createProfile(startDate, grapplingDays, entryWeeks));
   await ensureWeeks();
 }
 
-/** Génère, dans l'ordre, toutes les semaines manquantes jusqu'à la semaine en cours. */
+/** Bilan de chaque semaine (journal + séances prévues), calculé en mémoire. */
+export function reviewer(logs: LogEntry[], planned: PlannedSession[]) {
+  return (w: WeekPlan): WeekReview => {
+    const end = addWeeks(w.weekStart, 1);
+    return reviewWeek(
+      logs.filter((l) => l.date >= w.weekStart && l.date < end),
+      planned.filter((p) => p.weekStart === w.weekStart),
+    );
+  };
+}
+
+const sessionsTotal = (sessions: PlannedSession[]) => sessions.reduce((sum, s) => sum + (s.targets.durationMin ?? 0), 0);
+
+/** Génère, dans l'ordre, les semaines manquantes jusqu'à la semaine en cours. */
 export async function ensureWeeks(now: ISODate = todayISO()): Promise<void> {
   const profile = await db.profile.get('me');
   if (!profile) return;
@@ -20,41 +32,53 @@ export async function ensureWeeks(now: ISODate = todayISO()): Promise<void> {
 
   await db.transaction('rw', [db.profile, db.weeks, db.planned, db.logs], async () => {
     const history = await db.weeks.orderBy('weekStart').toArray();
+    const [logs, planned] = await Promise.all([db.logs.toArray(), db.planned.toArray()]);
     let next = history.length ? addWeeks(history.at(-1)!.weekStart, 1) : profile.startDate;
     while (next <= target) {
-      const week = await planWeek(next, history);
+      const week = planNextWeek({ profile, weekStart: next, history, reviewOf: reviewer(logs, planned) });
+      if (!week) break; // programme terminé
+      const sessions = buildWeekSessions(profile, week);
+      if (week.programWeek === 0) week.totalMin = sessionsTotal(sessions);
       await db.weeks.add(week);
-      await db.planned.bulkAdd(buildWeekSessions(profile, week));
+      await db.planned.bulkAdd(sessions);
       history.push(week);
+      planned.push(...sessions);
       next = addWeeks(next, 1);
     }
   });
 }
 
-async function planWeek(weekStart: ISODate, history: WeekPlan[]): Promise<WeekPlan> {
-  const profile = (await db.profile.get('me'))!;
-  const prev = history.at(-1);
-  const previous = prev ? await reviewOf(prev.weekStart) : null;
-  return planNextWeek({ profile, weekStart, history, previous });
-}
-
-export async function reviewOf(weekStart: ISODate) {
-  const end = addWeeks(weekStart, 1);
-  const [logs, planned] = await Promise.all([
-    db.logs.where('date').between(weekStart, end, true, false).toArray(),
-    db.planned.where('weekStart').equals(weekStart).toArray(),
-  ]);
-  return reviewWeek(logs, planned);
-}
-
-/** Aperçu (non enregistré) de la semaine suivante, d'après la semaine en cours. */
+/** Aperçu (non enregistré) de la semaine suivante, d'après les données actuelles. */
 export async function previewWeek(weekStart: ISODate): Promise<{ week: WeekPlan; sessions: PlannedSession[] } | null> {
   const profile = await db.profile.get('me');
   if (!profile) return null;
   const history = (await db.weeks.orderBy('weekStart').toArray()).filter((w) => w.weekStart < weekStart);
   if (!history.length) return null;
-  const week = await planWeek(weekStart, history);
-  return { week, sessions: buildWeekSessions(profile, week) };
+  const [logs, planned] = await Promise.all([db.logs.toArray(), db.planned.toArray()]);
+  const week = planNextWeek({ profile, weekStart, history, reviewOf: reviewer(logs, planned) });
+  if (!week) return null;
+  const sessions = buildWeekSessions(profile, week);
+  if (week.programWeek === 0) week.totalMin = sessionsTotal(sessions);
+  return { week, sessions };
+}
+
+/**
+ * Décision du dimanche. Si la semaine suivante est déjà générée et pas encore entamée,
+ * elle est recalculée avec cette décision.
+ */
+export async function saveCheckin(weekStart: ISODate, checkin: Checkin) {
+  await db.weeks.update(weekStart, { checkin });
+  const nextStart = addWeeks(weekStart, 1);
+  const next = await db.weeks.get(nextStart);
+  if (!next) return;
+  const started = await db.planned.where('weekStart').equals(nextStart).filter((p) => p.status === 'done').count();
+  const later = await db.weeks.where('weekStart').above(nextStart).count();
+  if (started || later) return;
+  await db.transaction('rw', db.weeks, db.planned, async () => {
+    await db.planned.where('weekStart').equals(nextStart).delete();
+    await db.weeks.delete(nextStart);
+  });
+  await ensureWeeks();
 }
 
 // ─── Journal ───────────────────────────────────────────────────────────────────
@@ -77,6 +101,14 @@ export async function deleteLog(id: number) {
   });
 }
 
+/** Séries prévues, avec la charge et les répétitions proposées d'après l'historique. */
+export function prescribedSets(exercises: ExercisePrescription[], history: LogEntry[]): SetEntry[] {
+  return exercises.flatMap((e) => {
+    const s = suggestLoad(exerciseHistory(history, e.name), e);
+    return Array.from({ length: e.sets }, () => ({ exercise: e.name, reps: s.reps, kg: s.kg, unit: e.unit ?? 'reps' }));
+  });
+}
+
 /** Cocher une séance prévue : la consigne avec les valeurs prévues (RPE à compléter). */
 export async function toggleDone(session: PlannedSession) {
   if (session.status === 'done') {
@@ -96,13 +128,19 @@ export async function toggleDone(session: PlannedSession) {
   });
 }
 
-/** Séries prévues, avec la charge proposée d'après l'historique. */
-export function prescribedSets(exercises: ExercisePrescription[], history: LogEntry[]): SetEntry[] {
-  return exercises.flatMap((e) => {
-    const s = suggestLoad(exerciseHistory(history, e.name), e);
-    return Array.from({ length: e.sets }, () => ({ exercise: e.name, reps: e.reps, kg: s.kg, unit: e.unit ?? 'reps' }));
-  });
-}
+// ─── Modification du plan ──────────────────────────────────────────────────────
+
+const restDay = (weekStart: ISODate, date: ISODate, details: string): PlannedSession => ({
+  weekStart,
+  date,
+  slot: 0,
+  slotId: 'rest',
+  type: 'repos',
+  title: 'Repos',
+  details,
+  targets: {},
+  status: 'planned',
+});
 
 export async function moveSession(id: number, date: ISODate) {
   await db.transaction('rw', db.planned, async () => {
@@ -112,19 +150,8 @@ export async function moveSession(id: number, date: ISODate) {
     const restOnTarget = await db.planned.where('date').equals(date).filter((p) => p.type === 'repos').primaryKeys();
     await db.planned.bulkDelete(restOnTarget);
     await db.planned.update(id, { date, weekStart: mondayOf(date) });
-    // Le jour quitté, s'il est vide, devient un jour de repos.
     if ((await db.planned.where('date').equals(s.date).count()) > 0) return;
-    await db.planned.add({
-      weekStart: s.weekStart,
-      date: s.date,
-      slot: 0,
-      type: 'repos',
-      title: 'Repos',
-      details: 'Jour libéré par un déplacement de séance.',
-      targets: {},
-      scalable: false,
-      status: 'planned',
-    });
+    await db.planned.add(restDay(s.weekStart, s.date, 'Jour libéré par un déplacement de séance.'));
   });
 }
 
@@ -132,43 +159,14 @@ export async function updateSession(id: number, patch: Partial<PlannedSession>) 
   await db.planned.update(id, patch);
 }
 
-// ─── Tests de contrôle ─────────────────────────────────────────────────────────
-
-export async function recordCheckpoint(month: CheckpointMonth, date: ISODate, results: TestResults): Promise<CheckpointRecord> {
-  const profile = (await db.profile.get('me'))!;
-  const passed = evaluate(results, profile.targets[month]);
-  const allPassed = Object.values(passed).every(Boolean);
-  const record: CheckpointRecord = { month, date, results, passed, allPassed };
-  record.id = await db.checkpoints.add(record);
-  if (allPassed) await db.profile.put(advancePhase(profile, month, date));
-  return record;
-}
-
-export async function chooseExtension(record: CheckpointRecord, weeks: 3 | 4) {
-  const profile = (await db.profile.get('me'))!;
-  await db.profile.put(extendPhase(profile, record.month, weeks));
-  await db.checkpoints.update(record.id!, { extensionWeeks: weeks });
-}
-
-export const checkpointPhase = (m: CheckpointMonth) => CHECKPOINT_PHASE[m];
-
-// ─── Jokers ────────────────────────────────────────────────────────────────────
-
-export async function spendJoker(date: ISODate) {
-  await db.jokers.put({ date, usedAt: Date.now() });
-}
-
-// ─── Modification du plan ──────────────────────────────────────────────────────
-
 export async function addSession(session: Omit<PlannedSession, 'id' | 'weekStart' | 'status' | 'slot'>) {
   await db.transaction('rw', db.planned, async () => {
-    // Une séance ajoutée sur un jour de repos remplace ce repos.
     if (session.type !== 'repos') {
       const rest = await db.planned.where('date').equals(session.date).filter((p) => p.type === 'repos').primaryKeys();
       await db.planned.bulkDelete(rest);
     }
     const count = await db.planned.where('date').equals(session.date).count();
-    await db.planned.add({ ...session, weekStart: mondayOf(session.date), slot: count, status: 'planned' });
+    await db.planned.add({ slotId: 'custom', ...session, weekStart: mondayOf(session.date), slot: count, status: 'planned' });
   });
 }
 
@@ -179,36 +177,74 @@ export async function deleteSession(id: number) {
     if (!s) return;
     if (s.logId) await db.logs.update(s.logId, { plannedId: undefined });
     await db.planned.delete(id);
+    if ((await db.planned.where('date').equals(s.date).count()) === 0) await db.planned.add(restDay(s.weekStart, s.date, 'Séance retirée du plan.'));
   });
 }
 
-export async function saveTemplate(phase: Phase, items: TemplateItem[]) {
-  const profile = (await db.profile.get('me'))!;
-  await db.profile.put({ ...profile, templates: { ...profile.templates, [phase]: items } });
+/** Prend l'option de la fiche (marche au lieu de la course du dimanche), ou revient à la séance prévue. */
+export async function swapAlternative(id: number) {
+  const s = await db.planned.get(id);
+  if (!s?.alternative || s.status === 'done') return;
+  const { alternative } = s;
+  await db.planned.update(id, {
+    type: alternative.type,
+    title: alternative.title,
+    details: alternative.details,
+    targets: alternative.targets,
+    alternative: { type: s.type, title: s.title, details: s.details, targets: s.targets },
+  });
 }
 
-export async function resetTemplate(phase: Phase) {
-  const profile = (await db.profile.get('me'))!;
-  const templates = { ...profile.templates };
-  delete templates[phase];
-  await db.profile.put({ ...profile, templates });
+/** Le 4e grappling remplace la course du jeudi et la piscine (voir fourthGrapplingBlocker). */
+export async function setFourthGrappling(weekStart: ISODate, on: boolean) {
+  await db.transaction('rw', [db.profile, db.weeks, db.planned], async () => {
+    const profile = (await db.profile.get('me'))!;
+    const week = (await db.weeks.get(weekStart))!;
+    const sh = sheet(week.programWeek || 1);
+    const updated: WeekPlan = { ...week, fourthGrappling: on, totalMin: on ? (sh.fourthGrappling?.totalMin ?? week.totalMin) : sh.totalMin };
+    await db.weeks.put(updated);
+    // Retire les créneaux concernés encore à faire, puis reconstruit ceux de la nouvelle version.
+    const slots = ['thursday', 'swim', 'grappling4'];
+    const current = await db.planned.where('weekStart').equals(weekStart).toArray();
+    await db.planned.bulkDelete(current.filter((p) => slots.includes(p.slotId ?? '') && p.status !== 'done').map((p) => p.id!));
+    await db.planned.bulkAdd(buildWeekSessions(profile, updated).filter((s) => slots.includes(s.slotId ?? '')));
+  });
+}
+
+/** Personnalisation (variantes, jours, créneaux retirés) : effet dès la semaine prochaine. */
+export async function saveCustomization(patch: Partial<Pick<Profile, 'slotDays' | 'disabledSlots' | 'exerciseSubs' | 'grapplingDays'>>) {
+  await db.profile.update('me', patch);
 }
 
 /**
- * Reconstruit la fin de la semaine en cours à partir de la semaine type :
- * les jours passés et les séances déjà faites ne bougent pas.
+ * Reconstruit la fin de la semaine en cours avec la personnalisation actuelle :
+ * les jours passés, les séances faites et les séances ajoutées à la main ne bougent pas.
  */
-export async function applyTemplateToWeek(weekStart: ISODate, from: ISODate) {
+export async function applyToWeek(weekStart: ISODate, from: ISODate) {
   await db.transaction('rw', [db.profile, db.weeks, db.planned], async () => {
     const profile = (await db.profile.get('me'))!;
     const week = await db.weeks.get(weekStart);
     if (!week) return;
     const current = await db.planned.where('weekStart').equals(weekStart).toArray();
-    const keep = current.filter((p) => p.date < from || p.status === 'done');
+    const keep = current.filter((p) => p.date < from || p.status === 'done' || p.slotId === 'custom');
     await db.planned.bulkDelete(current.filter((p) => !keep.includes(p)).map((p) => p.id!));
-    const fresh = buildWeekSessions(profile, week).filter(
-      (s) => s.date >= from && !keep.some((k) => k.date === s.date && k.type === s.type),
-    );
-    await db.planned.bulkAdd(fresh);
+    // Une séance déjà faite n'est pas reprogrammée (le grappling, lui, revient plusieurs fois par semaine).
+    const fresh = buildWeekSessions(profile, week).filter((s) => {
+      const unique = s.slotId !== 'grappling' && s.slotId !== 'rest';
+      return s.date >= from && !keep.some((k) => k.slotId === s.slotId && (k.date === s.date || (unique && k.status === 'done')));
+    });
+    await db.planned.bulkAdd(fresh.filter((s) => s.type !== 'repos' || !keep.some((k) => k.date === s.date)));
   });
+}
+
+// ─── Bilans et jokers ──────────────────────────────────────────────────────────
+
+export const bilanId = (programWeek: number) => `S${String(programWeek).padStart(2, '0')}`;
+
+export async function saveBilan(record: BilanRecord) {
+  await db.bilans.put({ ...record, id: bilanId(record.programWeek) });
+}
+
+export async function spendJoker(date: ISODate) {
+  await db.jokers.put({ date, usedAt: Date.now() });
 }
