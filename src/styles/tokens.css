@@ -1,0 +1,40 @@
+:root {
+  /* Palette */
+  --ink: #060507;
+  --anthracite: #17161a;
+  --anthracite-2: #201f24;
+  --steel: #34333a;
+  --steel-2: #55535c;
+  --bordeaux: #6e0e16;
+  --blood: #a8141f;
+  --blood-bright: #d0242f;
+  --brass: #a88a4a;
+  --brass-bright: #cfae68;
+  --bone: #d8d0bf;
+  --bone-dim: #9c9588;
+  --ok: #7f9a5e;
+
+  /* Type */
+  --font-gothic: 'Pirata One', 'UnifrakturMaguntia', serif;
+  --font-stencil: 'Big Shoulders Stencil Display', 'Arial Narrow', sans-serif;
+  --font-body: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+
+  --step--1: 0.9375rem; /* 15 */
+  --step-0: 1.0625rem; /* 17 */
+  --step-1: 1.3125rem; /* 21 */
+  --step-2: 1.75rem; /* 28 */
+  --step-3: 2.375rem; /* 38 */
+  --step-4: 3.5rem; /* 56 */
+
+  /* Space */
+  --gutter: 16px;
+  --tap: 56px;
+  --cut: 10px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 64px;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  color-scheme: dark;
+}
