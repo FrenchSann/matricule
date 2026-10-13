@@ -3,3 +3,6 @@ dist
 dev-dist
 e2e/shots
 .vercel
+
+.vercel
+.env*
