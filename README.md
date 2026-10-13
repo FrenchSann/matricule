@@ -11,7 +11,7 @@ npm run dev        # http://localhost:5173
 npm test           # moteur : progression, phases, streak, grades
 npm run build      # dist/ + service worker
 npm run icons      # régénère les icônes PNG
-python e2e/shots.py && python e2e/scenarios.py   # captures iPhone (vite preview sur :4173 et dev sur :5173)
+python e2e/shots.py && python e2e/scenarios.py && python e2e/strength.py   # captures iPhone (vite preview sur :4173 et dev sur :5173)
 ```
 
 ## Organisation

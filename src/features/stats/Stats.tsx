@@ -5,6 +5,7 @@ import { SESSION_LABEL } from '../../domain/types';
 import type { Data } from '../../state';
 import { DAY_STATUS } from '../labels';
 import { LineChart, SERIES_COLOR, StackedBars, type SeriesKey, type StackDatum } from './charts';
+import { StrengthProgress } from './StrengthProgress';
 
 const KEYS: SeriesKey[] = ['course', 'grappling', 'natation', 'force', 'marche', 'mobilite'];
 const LABELS = Object.fromEntries(KEYS.map((k) => [k, SESSION_LABEL[k]])) as Record<SeriesKey, string>;
@@ -44,18 +45,6 @@ export function Stats({ data }: { data: Data }) {
   const runs = logs
     .filter((l) => l.type === 'course' && l.distanceKm && l.distanceKm >= 2 && l.durationMin)
     .map((l) => ({ label: formatShort(l.date), value: (l.durationMin! * 60) / l.distanceKm! }));
-
-  // Tractions : meilleure série par jour + tests de contrôle
-  const pullByDay = new Map<string, number>();
-  for (const l of logs) {
-    for (const s of l.sets ?? []) {
-      if (s.exercise === 'Tractions') pullByDay.set(l.date, Math.max(pullByDay.get(l.date) ?? 0, s.reps));
-    }
-  }
-  for (const c of data.checkpoints) {
-    if (c.results.tractions !== undefined) pullByDay.set(c.date, Math.max(pullByDay.get(c.date) ?? 0, c.results.tractions));
-  }
-  const pulls = [...pullByDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([d, v]) => ({ label: formatShort(d), value: v }));
 
   // Calendrier du streak : 12 dernières semaines
   const calStart = [addWeeks(thisMonday, -11), first].sort().at(-1)!;
@@ -108,12 +97,8 @@ export function Stats({ data }: { data: Data }) {
       </section>
 
       <section className="stack">
-        <h2>Tractions strictes</h2>
-        {pulls.length >= 2 ? (
-          <LineChart points={pulls} format={(v) => `${Math.round(v)} reps`} color={SERIES_COLOR.force} label="Meilleure série de tractions" />
-        ) : (
-          <p className="empty">Ajoute une série « Tractions » dans tes séances de force pour suivre ta progression.</p>
-        )}
+        <h2>Musculation</h2>
+        <StrengthProgress logs={logs} />
       </section>
 
       {data.checkpoints.length > 0 && (

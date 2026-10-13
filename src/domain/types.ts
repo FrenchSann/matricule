@@ -20,10 +20,43 @@ export interface Pain {
   zone: string;
 }
 
+/** Unité d'une série : répétitions, secondes (gainage) ou mètres (farmer walk). */
+export type SetUnit = 'reps' | 's' | 'm';
+
 export interface SetEntry {
   exercise: string;
   reps: number;
   kg?: number;
+  unit?: SetUnit;
+}
+
+/** Exercice prescrit dans une séance de force. */
+export interface ExercisePrescription {
+  name: string;
+  sets: number;
+  reps: number;
+  unit?: SetUnit;
+  /** charge de départ, si l'historique est vide */
+  kg?: number;
+}
+
+/** Ajustement automatique du contenu d'une séance selon la semaine. */
+export type AutoDetails = 'runWalk' | 'intervals' | 'ruck';
+
+/** Élément de la semaine type d'une phase (modifiable). */
+export interface TemplateItem {
+  id: string;
+  day: number; // 0 = lundi
+  type: SessionType;
+  title: string;
+  /** part du volume progressif ; 0 = durée fixe */
+  share: number;
+  fixedMin?: number;
+  maxMin?: number;
+  details: string;
+  auto?: AutoDetails;
+  exercises?: ExercisePrescription[];
+  simulation?: boolean;
 }
 
 /** Séance consignée dans le journal. Les champs présents dépendent du type. */
@@ -62,6 +95,7 @@ export interface PlannedSession {
   targets: PlannedTargets;
   /** séance dont la durée suit la progression (≠ grappling, mobilité) */
   scalable: boolean;
+  exercises?: ExercisePrescription[];
   /** séance spécifique simulation d'épreuves */
   simulation?: boolean;
   status: PlannedStatus;
@@ -127,6 +161,8 @@ export interface Profile {
   /** semaines ajoutées à chaque phase après un test manqué */
   extensions: Partial<Record<Phase, number>>;
   targets: Record<CheckpointMonth, TestTargets>;
+  /** semaines types personnalisées (sinon modèle par défaut) */
+  templates?: Partial<Record<Phase, TemplateItem[]>>;
   lastExportAt?: number;
   createdAt: number;
 }

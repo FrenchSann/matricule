@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { db } from '../../db/schema';
 import { chooseExtension, recordCheckpoint } from '../../db/engine';
-import { addWeeks, DAY_SHORT, formatDay, formatDuration, parseDuration } from '../../domain/dates';
+import { addWeeks, formatDay, formatDuration, parseDuration } from '../../domain/dates';
 import { TEST_KEYS, TEST_LABEL } from '../../domain/checkpoints';
 import { CHECKPOINT_PHASE, checkpointDueDate, PHASES, phaseLength } from '../../domain/program';
 import { RANKS, requirementText } from '../../domain/ranks';
@@ -131,28 +131,9 @@ export function Dossier({ data }: { data: Data }) {
 
       <section className="stack">
         <h2>Réglages</h2>
-        <div className="field">
-          <span className="field-label">Jours de grappling (appliqué aux prochaines semaines)</span>
-          <div className="chips chips--days">
-            {DAY_SHORT.map((d, i) => {
-              const on = data.profile.grapplingDays.includes(i);
-              return (
-                <button
-                  key={d}
-                  className="chip"
-                  aria-pressed={on}
-                  onClick={() =>
-                    db.profile.update('me', {
-                      grapplingDays: on ? data.profile.grapplingDays.filter((x) => x !== i) : [...data.profile.grapplingDays, i].sort(),
-                    })
-                  }
-                >
-                  {d}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <p className="small muted">
+          Jours de grappling et contenu des séances : onglet Plan, puis Modifier la semaine type.
+        </p>
         <p className="small muted">
           Programme démarré le {formatDay(data.profile.startDate).toLowerCase()}. Phase {ROMAN[data.phase]} : {phaseLength(data.profile, data.phase)} semaines prévues.
         </p>

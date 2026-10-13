@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { SessionType } from '../domain/types';
 
 export const TYPE_CODE: Record<SessionType, string> = {
@@ -176,5 +176,55 @@ export function Flame({ lit }: { lit: boolean }) {
         fill={lit ? '#a8141f' : '#17161a'}
       />
     </svg>
+  );
+}
+
+/** Petit sélecteur −/+ pour les séries (répétitions, charge). */
+export function MiniStepper({
+  label,
+  value,
+  onChange,
+  step = 1,
+  decimals = 0,
+  suffix,
+  placeholder = '—',
+}: {
+  label: string;
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
+  step?: number;
+  decimals?: number;
+  suffix?: string;
+  placeholder?: string;
+}) {
+  // Texte local : permet de taper « 42, » puis « 42,5 » sans perdre la virgule.
+  const fmt = (v: number | undefined) => (v === undefined ? '' : String(v).replace('.', ','));
+  const parse = (t: string) => (t.trim() === '' ? undefined : Number(t.replace(',', '.')));
+  const [text, setText] = useState(fmt(value));
+  useEffect(() => {
+    if (parse(text) !== value) setText(fmt(value));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  const bump = (dir: 1 | -1) => onChange(Math.max(0, +((value ?? 0) + dir * step).toFixed(decimals)));
+  return (
+    <div className="mini-stepper">
+      <button type="button" onClick={() => bump(-1)} aria-label={`${label} : moins ${step}`}>−</button>
+      <label>
+        <input
+          inputMode={decimals ? 'decimal' : 'numeric'}
+          aria-label={label}
+          value={text}
+          placeholder={placeholder}
+          onChange={(e) => {
+            const t = e.target.value;
+            const n = parse(t);
+            if (n !== undefined && Number.isNaN(n)) return;
+            setText(t);
+            onChange(n);
+          }}
+        />
+        {suffix && <span>{suffix}</span>}
+      </label>
+      <button type="button" onClick={() => bump(1)} aria-label={`${label} : plus ${step}`}>+</button>
+    </div>
   );
 }

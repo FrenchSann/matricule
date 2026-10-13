@@ -606,3 +606,73 @@ textarea.text-input { min-height: 72px; resize: vertical; }
 .table th { color: var(--bone-dim); font-weight: 600; }
 .table td.ko { color: var(--blood-bright); }
 details summary { cursor: pointer; min-height: 32px; }
+
+/* ─── Musculation ───────────────────────────────────────── */
+.mini-stepper {
+  display: grid;
+  grid-template-columns: 38px 1fr 38px;
+  min-width: 0;
+  background: var(--anthracite-2);
+  box-shadow: inset 0 0 0 1px var(--steel);
+}
+.mini-stepper button {
+  border: 0;
+  background: none;
+  min-height: 46px;
+  font-size: 22px;
+  color: var(--brass-bright);
+}
+.mini-stepper label {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+.mini-stepper input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: none;
+  text-align: right;
+  font-family: var(--font-stencil);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  padding: 0;
+}
+.mini-stepper span { font-size: 13px; color: var(--bone-dim); flex: 0 0 auto; padding-right: 2px; }
+.mini-stepper input:placeholder-shown { text-align: center; }
+
+.exercise {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--steel);
+}
+.exercise-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.exercise-name { font-weight: 700; font-size: var(--step-1); line-height: 1.1; }
+.exercise-hint { font-size: 14px; color: var(--bone-dim); }
+.exercise-hint--up { color: var(--brass-bright); }
+.set-line {
+  display: grid;
+  grid-template-columns: 22px 1fr 1fr 30px;
+  gap: 6px;
+  align-items: center;
+}
+.set-line .set-n { font-family: var(--font-stencil); font-weight: 700; color: var(--bone-dim); text-align: center; }
+.set-line .remove { border: 0; background: none; color: var(--bone-dim); font-size: 22px; min-height: 44px; }
+
+.ex-list { display: grid; gap: 4px; margin: 4px 0 0; padding: 0; list-style: none; }
+.ex-list li { display: flex; justify-content: space-between; gap: 8px; font-size: var(--step--1); }
+.ex-list li .num { color: var(--brass-bright); white-space: nowrap; }
+
+.pr { color: var(--brass-bright); font-family: var(--font-stencil); font-weight: 700; letter-spacing: 0.04em; }
+.grid-3 { display: grid; grid-template-columns: 0.8fr 1fr 1.2fr; gap: 6px; }

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { deleteLog, saveLog } from '../../db/engine';
 import { addDays, formatDuration, formatShort } from '../../domain/dates';
-import { SESSION_LABEL, type LogEntry, type PlannedSession, type SessionType, type SetEntry } from '../../domain/types';
+import { templateFor } from '../../domain/program';
+import { SESSION_LABEL, type LogEntry, type Phase, type PlannedSession, type SessionType } from '../../domain/types';
+import { flattenGroups, initialGroups, StrengthLog, type ExerciseGroup } from './StrengthLog';
 import { RpePicker, Sheet, Stepper, TYPE_CODE } from '../../ui/kit';
 import { useUI, type Data } from '../../state';
 
 const TYPES: SessionType[] = ['course', 'grappling', 'force', 'natation', 'marche', 'mobilite', 'repos'];
 const PAIN_ZONES = ['Genou', 'Cheville', 'Tibia', 'Pied', 'Hanche', 'Dos', 'Épaule', 'Coude'];
-const EXERCISES = ['Tractions', 'Pompes', 'Dips', 'Squat', 'Soulevé de terre', 'Corde (montées)', 'Gainage (s)'];
 
 const HAS = {
   duration: (t: SessionType) => t !== 'repos',
@@ -37,7 +38,9 @@ export function LogSheet({ data, session, onClose }: { data: Data; session?: Pla
   const [duration, setDuration] = useState(base.durationMin);
   const [distance, setDistance] = useState(base.distanceKm);
   const [load, setLoad] = useState(base.loadKg);
-  const [sets, setSets] = useState<SetEntry[]>(base.sets ?? []);
+  const historyFor = (d: string) => data.logs.filter((l) => l.id !== existing?.id && l.date <= d);
+  const templates = ([1, 2, 3, 4] as Phase[]).map((p) => templateFor(data.profile, p));
+  const [groups, setGroups] = useState<ExerciseGroup[]>(() => initialGroups(base.sets, source?.exercises, historyFor(base.date!)));
   const [rpe, setRpe] = useState(base.rpe);
   const [pain, setPain] = useState(!!base.pain);
   const [zone, setZone] = useState(base.pain?.zone ?? '');
@@ -51,6 +54,7 @@ export function LogSheet({ data, session, onClose }: { data: Data; session?: Pla
     setDuration(match?.targets.durationMin);
     setDistance(match?.targets.distanceKm);
     setLoad(match?.targets.loadKg);
+    if (t === 'force' && !groups.length) setGroups(initialGroups(undefined, match?.exercises, historyFor(date)));
   };
 
   const swim = type === 'natation';
@@ -64,7 +68,7 @@ export function LogSheet({ data, session, onClose }: { data: Data; session?: Pla
       durationMin: HAS.duration(type) ? duration : undefined,
       distanceKm: HAS.distance(type) ? distance : undefined,
       loadKg: HAS.load(type) ? load : undefined,
-      sets: HAS.sets(type) ? sets.filter((s) => s.exercise && s.reps > 0) : undefined,
+      sets: HAS.sets(type) ? flattenGroups(groups) : undefined,
       rpe: HAS.rpe(type) ? rpe : undefined,
       pain: pain ? { zone } : null,
       note: note.trim() || undefined,
@@ -134,7 +138,7 @@ export function LogSheet({ data, session, onClose }: { data: Data; session?: Pla
           </div>
         )}
 
-        {HAS.sets(type) && <SetsEditor sets={sets} onChange={setSets} />}
+        {HAS.sets(type) && <StrengthLog groups={groups} onChange={setGroups} history={historyFor(date)} templates={templates} />}
 
         <div className="field">
           <span className="field-label">Douleur</span>
@@ -178,42 +182,5 @@ export function LogSheet({ data, session, onClose }: { data: Data; session?: Pla
         </div>
       </div>
     </Sheet>
-  );
-}
-
-function SetsEditor({ sets, onChange }: { sets: SetEntry[]; onChange: (s: SetEntry[]) => void }) {
-  const update = (i: number, patch: Partial<SetEntry>) => onChange(sets.map((s, k) => (k === i ? { ...s, ...patch } : s)));
-  const num = (v: string) => (v === '' ? undefined : Number(v.replace(',', '.')));
-  return (
-    <div className="field">
-      <span className="field-label">Séries (facultatif)</span>
-      <div className="chips">
-        {EXERCISES.map((e) => (
-          <button key={e} type="button" className="chip" onClick={() => onChange([...sets, { exercise: e, reps: 0 }])}>
-            + {e}
-          </button>
-        ))}
-      </div>
-      {sets.length > 0 && (
-        <div className="stack stack--tight">
-          <div className="set-row small muted">
-            <span>Exercice</span>
-            <span style={{ textAlign: 'center' }}>Reps</span>
-            <span style={{ textAlign: 'center' }}>kg</span>
-            <span />
-          </div>
-          {sets.map((s, i) => (
-            <div key={i} className="set-row">
-              <span>{s.exercise}</span>
-              <input className="text-input" inputMode="numeric" aria-label={`${s.exercise} : répétitions`} value={s.reps || ''} onChange={(e) => update(i, { reps: num(e.target.value) ?? 0 })} />
-              <input className="text-input" inputMode="decimal" aria-label={`${s.exercise} : charge`} value={s.kg ?? ''} onChange={(e) => update(i, { kg: num(e.target.value) })} />
-              <button type="button" className="remove" aria-label={`Retirer ${s.exercise}`} onClick={() => onChange(sets.filter((_, k) => k !== i))}>
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }

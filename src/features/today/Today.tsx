@@ -2,7 +2,8 @@ import { addDays, daysBetween, formatDay, formatShort, weekday, DAY_LONG } from 
 import { PHASES } from '../../domain/program';
 import { RANKS } from '../../domain/ranks';
 import { toggleDone, spendJoker } from '../../db/engine';
-import type { PlannedSession } from '../../domain/types';
+import type { ExercisePrescription, LogEntry, PlannedSession } from '../../domain/types';
+import { exerciseHistory, suggestLoad, UNIT_LABEL } from '../../domain/strength';
 import { Insignia } from '../../ui/Insignia';
 import { Flame, Icons, TYPE_CODE } from '../../ui/kit';
 import { useUI, type Data } from '../../state';
@@ -97,7 +98,7 @@ export function Today({ data }: { data: Data }) {
         </div>
         {sessions.length === 0 && <p className="empty">Rien de prévu. Profite du repos.</p>}
         {sessions.map((s) => (
-          <SessionPlate key={s.id} session={s} resting={!!painLog} />
+          <SessionPlate key={s.id} session={s} resting={!!painLog} logs={logs} />
         ))}
       </section>
 
@@ -135,7 +136,7 @@ function StreakPlate({ data }: { data: Data }) {
   );
 }
 
-function SessionPlate({ session: s, resting }: { session: PlannedSession; resting: boolean }) {
+function SessionPlate({ session: s, resting, logs }: { session: PlannedSession; resting: boolean; logs: LogEntry[] }) {
   const ui = useUI();
   const done = s.status === 'done';
   const isRest = s.type === 'repos';
@@ -155,6 +156,7 @@ function SessionPlate({ session: s, resting }: { session: PlannedSession; restin
       <div className="stack stack--tight">
         <p className="session-details">{s.details}</p>
         {sessionMeta(s) && s.type === 'marche' && <p className="small">{sessionMeta(s)}</p>}
+        {s.exercises?.length && !done ? <ExerciseList exercises={s.exercises} history={logs.filter((l) => l.date < s.date)} /> : null}
         {isRest && <p className="small" style={{ color: 'var(--brass-bright)' }}>Repos prévu : le respecter compte comme un jour tenu.</p>}
       </div>
       {!isRest && (
@@ -174,5 +176,28 @@ function SessionPlate({ session: s, resting }: { session: PlannedSession; restin
         </div>
       )}
     </article>
+  );
+}
+
+/** Exercices prévus avec la charge proposée d'après l'historique. */
+function ExerciseList({ exercises, history }: { exercises: ExercisePrescription[]; history: LogEntry[] }) {
+  return (
+    <ul className="ex-list">
+      {exercises.map((e) => {
+        const sug = suggestLoad(exerciseHistory(history, e.name), e);
+        const unit = e.unit && e.unit !== 'reps' ? ` ${UNIT_LABEL[e.unit]}` : '';
+        return (
+          <li key={e.name}>
+            <span>{e.name}</span>
+            <span className="num">
+              {e.sets}×{sug.reps}
+              {unit}
+              {sug.kg ? ` à ${String(sug.kg).replace('.', ',')} kg` : ''}
+              {sug.reason === 'progress' ? ' ↑' : ''}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
