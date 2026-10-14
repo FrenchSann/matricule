@@ -1,4 +1,4 @@
-import { addDays, addWeeks, daysBetween, DAY_LONG, formatDay, formatShort, weekday } from '../../domain/dates';
+import { addDays, addWeeks, daysBetween, DAY_LONG, DAY_SHORT, formatDay, formatShort, weekday } from '../../domain/dates';
 import { blockOf, fourthGrapplingBlocker, sheet } from '../../domain/programme';
 import { RANKS } from '../../domain/ranks';
 import { exerciseHistory, suggestLoad } from '../../domain/strength';
@@ -6,6 +6,9 @@ import { setFourthGrappling, spendJoker, swapAlternative, toggleDone } from '../
 import type { ExercisePrescription, LogEntry, PlannedSession } from '../../domain/types';
 import { Insignia } from '../../ui/Insignia';
 import { Flame, Icons, TYPE_CODE } from '../../ui/kit';
+import { Holes } from '../../ui/Impact';
+import { Cartridge, usePressTilt, useFreshFlag, type CartridgeState } from '../../ui/fx';
+import type { DayStatus } from '../../domain/streak';
 import { useUI, type Data } from '../../state';
 import { hours, matricule, prescriptionText, weekLabel, WEEK_KIND } from '../labels';
 import { CheckinCard } from './CheckinCard';
@@ -28,10 +31,13 @@ export function Today({ data }: { data: Data }) {
     <div className="screen">
       <header className="orders">
         <div>
-          <p className="kicker num">Matricule {matricule(week, today)}</p>
+          <p className="row" style={{ gap: 12 }}>
+            <span className="kicker num">Matricule {matricule(week, today)}</span>
+            {week && !data.programDone && <span className="live">En service</span>}
+          </p>
           <h1>Ordre du jour</h1>
         </div>
-        <Insignia rank={rank} size={78} />
+        <Insignia rank={rank} size={78} motion="idle" />
         <div className="orders-meta">
           <span><b>{formatDay(today)}</b></span>
           {week && (
@@ -154,10 +160,23 @@ export function Today({ data }: { data: Data }) {
   );
 }
 
+const CARTRIDGE: Partial<Record<DayStatus, CartridgeState>> = {
+  done: 'live',
+  rest: 'live',
+  excused: 'live',
+  joker: 'joker',
+  missed: 'spent',
+  'rest-broken': 'spent',
+};
+
 function StreakPlate({ data }: { data: Data }) {
   const { current, best, jokersAvailable } = data.streak;
+  const tilt = usePressTilt(4);
+  // Les 7 derniers jours, aujourd'hui compris : une douille par jour.
+  const days = Array.from({ length: 7 }, (_, i) => addDays(data.today, i - 6));
+  const kept = days.filter((d) => CARTRIDGE[data.statuses.get(d) ?? 'future'] === 'live').length;
   return (
-    <section className="plate plate--brass streak" aria-label="Streak">
+    <section className="plate plate--brass streak tilt hud" aria-label="Streak" {...tilt}>
       <Flame lit={current > 0} />
       <div className="streak-label">
         <span className="num streak-count">{current}</span>
@@ -167,6 +186,14 @@ function StreakPlate({ data }: { data: Data }) {
       <div className="jokers" title="Jokers disponibles">
         <span className="num">{jokersAvailable}</span>
         <span>joker{jokersAvailable > 1 ? 's' : ''}</span>
+      </div>
+      <div className="cartridges" role="list" aria-label="Les 7 derniers jours">
+        {days.map((d) => {
+          const st = data.statuses.get(d);
+          const state: CartridgeState = st ? (CARTRIDGE[st] ?? 'pending') : 'pending';
+          return <Cartridge key={d} state={state} label={`${DAY_SHORT[weekday(d)]} ${formatShort(d)}`} />;
+        })}
+        <span className="cartridges-label num">{kept}/7</span>
       </div>
     </section>
   );
@@ -186,6 +213,8 @@ function SessionPlate({
   const ui = useUI();
   const done = s.status === 'done';
   const isRest = s.type === 'repos';
+  const fresh = useFreshFlag(done);
+  const tilt = usePressTilt(5);
 
   const check = async () => {
     await toggleDone(s);
@@ -193,7 +222,8 @@ function SessionPlate({
   };
 
   return (
-    <article className={`plate session ${done ? 'session--done' : ''} ${isRest ? 'session--repos' : ''}`}>
+    <article className={`plate session tilt hud ${done ? 'session--done' : ''} ${isRest ? 'session--repos' : ''} ${fresh ? 'plate--hit' : ''}`} {...tilt}>
+      {done && <Holes seed={s.id ?? 1} count={3} fresh={fresh} />}
       <span className="session-code" aria-hidden="true">{TYPE_CODE[s.type]}</span>
       <div className="session-title">
         <span>{s.title}</span>

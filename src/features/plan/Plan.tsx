@@ -5,6 +5,7 @@ import { blockOf } from '../../domain/programme';
 import { DECISION_LABEL } from '../../domain/cursor';
 import type { PlannedSession, WeekPlan } from '../../domain/types';
 import { Icons, Sheet, TYPE_CODE } from '../../ui/kit';
+import { BulletHole } from '../../ui/Impact';
 import { useUI, type Data } from '../../state';
 import { DAY_STATUS, hours, prescriptionText, sessionMeta, weekLabel, WEEK_KIND } from '../labels';
 import { SessionEditor, type EditorValue } from './SessionEditor';
@@ -125,7 +126,12 @@ export function Plan({ data }: { data: Data }) {
                       {[sessionMeta(s), s.exercises?.length ? `${s.exercises.length} exercices` : ''].filter(Boolean).join(', ') || s.details}
                     </span>
                   </span>
-                  {s.status === 'done' && <span style={{ color: 'var(--brass-bright)', width: 24 }}>{Icons.check}</span>}
+                  {s.status === 'done' && (
+                    <span className="done-mark" title="Faite">
+                      <BulletHole seed={s.id ?? 1} size={34} style={{ position: 'relative', transform: 'none' }} />
+                      <span className="sr-only">Faite</span>
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

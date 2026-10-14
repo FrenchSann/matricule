@@ -10,6 +10,7 @@ import '@fontsource/barlow-condensed/latin-700';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/app.css';
+import './styles/fx.css';
 import { App } from './App';
 import { requestPersistence } from './db/schema';
 

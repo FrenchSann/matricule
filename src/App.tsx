@@ -10,6 +10,7 @@ import { Dossier } from './features/profile/Dossier';
 import { LogSheet } from './features/log/LogSheet';
 import { Insignia } from './ui/Insignia';
 import { Icons } from './ui/kit';
+import { Ambience, Volley } from './ui/fx';
 import { UIContext, useData, type Data, type Tab, type UI } from './state';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -27,14 +28,20 @@ const readTab = (): Tab => {
 export function App() {
   const data = useData();
   if (data.status === 'loading') return null;
-  if (data.status === 'new') return <Onboarding />;
+  if (data.status === 'new')
+    return (
+      <>
+        <Ambience />
+        <Onboarding />
+      </>
+    );
   return <Shell data={data} />;
 }
 
 function Shell({ data }: { data: Data }) {
   const [tab, setTab] = useState<Tab>(readTab);
   const [log, setLog] = useState<{ session?: PlannedSession } | null>(null);
-  const [stampText, setStampText] = useState<string | null>(null);
+  const [volley, setVolley] = useState<{ text: string; seed: number } | null>(null);
 
   useEffect(() => {
     const onHash = () => setTab(readTab());
@@ -51,10 +58,11 @@ function Shell({ data }: { data: Data }) {
   const ui = useMemo<UI>(
     () => ({
       openLog: (session) => setLog({ session }),
+      // Validation : rafale de trois impacts, secousse de l'écran, puis le tampon.
       stamp: (text = 'Consigné') => {
-        setStampText(text);
-        navigator.vibrate?.(30);
-        setTimeout(() => setStampText(null), 1050);
+        setVolley({ text, seed: Math.floor(Math.random() * 997) + 1 });
+        navigator.vibrate?.([14, 70, 14, 70, 22]);
+        setTimeout(() => setVolley(null), 1300);
       },
       go,
     }),
@@ -63,7 +71,8 @@ function Shell({ data }: { data: Data }) {
 
   return (
     <UIContext.Provider value={ui}>
-      <main className="app">
+      <Ambience />
+      <main className={`app ${volley ? 'shake' : ''}`}>
         {tab === 'today' && <Today data={data} />}
         {tab === 'plan' && <Plan data={data} />}
         {tab === 'stats' && <Stats data={data} />}
@@ -88,11 +97,7 @@ function Shell({ data }: { data: Data }) {
       </nav>
 
       {log && <LogSheet data={data} session={log.session} onClose={() => setLog(null)} />}
-      {stampText && (
-        <div className="stamp-layer" aria-live="polite">
-          <div className="stamp">{stampText}</div>
-        </div>
-      )}
+      {volley && <Volley key={volley.seed} text={volley.text} seed={volley.seed} />}
       <Promotion data={data} />
     </UIContext.Provider>
   );
@@ -128,7 +133,7 @@ function Promotion({ data }: { data: Data }) {
   return (
     <div className="promotion" role="alertdialog" aria-labelledby="promo-title">
       <p className="kicker">Promotion</p>
-      <Insignia rank={data.rank} size={150} />
+      <Insignia rank={data.rank} size={150} motion="spin" />
       <h1 id="promo-title">{RANKS[data.rank].name}</h1>
       <p className="muted">Grade obtenu par ton assiduité au plan.</p>
       <button className="btn btn--brass" onClick={confirm}>

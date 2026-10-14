@@ -1,0 +1,439 @@
+/* ═══ Gothique / Modern Warfare : matière, profondeur, impacts ═══════════════ */
+
+:root {
+  --gunmetal: #17181c;
+  --gunmetal-2: #1f2126;
+  --gunmetal-hi: #2b2e35;
+  --flash: #ffd08a;
+  --ease-snap: cubic-bezier(0.16, 1.3, 0.3, 1);
+  --ease-heavy: cubic-bezier(0.3, 0.7, 0.1, 1);
+}
+
+/* Aucun débordement horizontal : sur iPhone il ferait dézoomer la page et décalerait les taps */
+html,
+body { overflow-x: clip; }
+
+/* ─── Fond : vignette, lueur d'incendie à l'horizon, réticule en filigrane ── */
+body {
+  background:
+    radial-gradient(140% 70% at 50% 120%, rgba(168, 20, 31, 0.16), transparent 55%),
+    radial-gradient(120% 60% at 50% -10%, rgba(110, 14, 22, 0.14), transparent 60%),
+    radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.75) 100%),
+    var(--ink);
+  background-attachment: fixed;
+}
+
+/* Scanlines HUD très discrètes */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 101;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+
+/* Cendres et braises qui montent */
+.ambience {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.ambience i {
+  position: absolute;
+  bottom: -10px;
+  border-radius: 50%;
+  background: rgba(216, 208, 191, 0.35);
+  animation: ash linear infinite;
+  will-change: transform, opacity;
+}
+.ambience i.ember {
+  background: #ff7a3c;
+  box-shadow: 0 0 6px 1px rgba(255, 90, 40, 0.7);
+}
+@keyframes ash {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  10% { opacity: 0.8; }
+  85% { opacity: 0.5; }
+  100% { transform: translate3d(var(--drift), -110vh, 0); opacity: 0; }
+}
+
+/* Pas de z-index ici : il enfermerait les feuilles du Plan et du Dossier sous la barre d'onglets */
+.app { position: relative; }
+.app.shake { animation: shake 0.42s var(--ease-heavy); }
+@keyframes shake {
+  0% { transform: perspective(900px) translate3d(0, 0, 0); }
+  12% { transform: perspective(900px) translate3d(-6px, 3px, -24px) rotateX(2deg) rotateZ(-0.6deg); }
+  28% { transform: perspective(900px) translate3d(5px, -2px, -10px) rotateX(-1deg) rotateZ(0.5deg); }
+  46% { transform: perspective(900px) translate3d(-3px, 1px, -4px) rotateZ(-0.3deg); }
+  70% { transform: perspective(900px) translate3d(1px, 0, 0); }
+  100% { transform: none; }
+}
+
+/* ─── Écrans : arrivée en profondeur ─────────────────────────────────────── */
+.screen {
+  animation: deploy 0.36s var(--ease-heavy) backwards; /* pas de transform résiduel : les feuilles fixes restent calées sur l'écran */
+  transform-origin: 50% 0;
+}
+@keyframes deploy {
+  from { opacity: 0; transform: perspective(1000px) translate3d(0, 14px, -70px) rotateX(5deg); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ─── Plaques d'acier brossé, rivets, crochets HUD ───────────────────────── */
+.plate {
+  background:
+    radial-gradient(circle at 9px 9px, #3d3f46 0 1.6px, #0c0c0e 1.8px 2.4px, transparent 2.6px),
+    radial-gradient(circle at calc(100% - 9px) 9px, #3d3f46 0 1.6px, #0c0c0e 1.8px 2.4px, transparent 2.6px),
+    radial-gradient(circle at 9px calc(100% - 9px), #3d3f46 0 1.6px, #0c0c0e 1.8px 2.4px, transparent 2.6px),
+    repeating-linear-gradient(96deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 4px),
+    linear-gradient(165deg, var(--gunmetal-hi) -20%, var(--gunmetal) 38%, #101114 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px #2a2c32,
+    inset 0 -18px 30px -20px rgba(0, 0, 0, 0.8);
+  isolation: isolate;
+}
+.plate--brass {
+  box-shadow:
+    inset 0 1px 0 rgba(207, 174, 104, 0.18),
+    inset 0 0 0 1px rgba(168, 138, 74, 0.6),
+    inset 0 -18px 30px -20px rgba(0, 0, 0, 0.8);
+}
+.plate--alert {
+  box-shadow:
+    inset 0 0 0 1px var(--bordeaux),
+    inset 3px 0 0 var(--blood),
+    inset 0 0 40px -10px rgba(168, 20, 31, 0.35);
+}
+
+/* Crochets de visée aux coins (HUD) */
+.hud {
+  position: relative;
+}
+.hud::before,
+.hud::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  border-color: var(--brass);
+  border-style: solid;
+  opacity: 0.8;
+}
+.hud::before { top: 6px; right: 6px; border-width: 1px 1px 0 0; }
+.hud::after { bottom: 6px; left: 6px; border-width: 0 0 1px 1px; }
+
+/* Bascule 3D au toucher : la 3D n'existe que pendant l'appui (sinon le ciblage des taps se dérègle) */
+.tilt {
+  transition: transform 0.35s var(--ease-snap);
+}
+.tilt[data-pressed] {
+  transition-duration: 0.08s;
+  transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(-8px);
+}
+
+/* Plaque qui encaisse la rafale */
+.plate--hit { animation: hit 0.5s var(--ease-heavy); }
+@keyframes hit {
+  0% { transform: perspective(700px); }
+  14% { transform: perspective(700px) translateZ(-38px) rotateX(6deg) rotateY(-3deg); filter: brightness(1.6); }
+  32% { transform: perspective(700px) translateZ(-12px) rotateX(-2deg) rotateY(2deg); filter: brightness(1); }
+  60% { transform: perspective(700px) translateZ(-4px) rotateX(1deg); }
+  100% { transform: perspective(700px); }
+}
+
+/* ─── Impacts de balles ──────────────────────────────────────────────────── */
+.holes {
+  position: absolute;
+  inset: 0;
+  z-index: -1; /* sous le contenu de la plaque, au-dessus de son fond */
+  pointer-events: none;
+  overflow: hidden;
+}
+.bullet {
+  position: absolute;
+  display: block;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.bullet svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.bullet-petals { fill: #4a4740; stroke: #8b8579; stroke-width: 0.7; opacity: 0.85; }
+.bullet-cracks path { fill: none; stroke: rgba(216, 208, 191, 0.42); stroke-width: 0.8; stroke-linecap: round; }
+.holes .bullet { opacity: 0.78; }
+
+.bullet--fresh svg { animation: punch 0.34s var(--ease-snap) both; animation-delay: var(--delay, 0ms); }
+.bullet--fresh .bullet-cracks path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: crack 0.32s ease-out forwards;
+  animation-delay: calc(var(--delay, 0ms) + 60ms);
+}
+@keyframes punch {
+  0% { transform: scale(0.2); opacity: 0; }
+  30% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes crack { to { stroke-dashoffset: 0; } }
+
+.bullet-flash {
+  position: absolute;
+  inset: -40%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff7e0 0 8%, var(--flash) 18%, rgba(255, 120, 40, 0.5) 34%, transparent 60%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: flash 0.22s ease-out both;
+  animation-delay: var(--delay, 0ms);
+}
+@keyframes flash {
+  0% { opacity: 0; transform: scale(0.3); }
+  25% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+.bullet-sparks { position: absolute; left: 50%; top: 50%; }
+.bullet-sparks i {
+  position: absolute;
+  width: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #ffd08a, #fff);
+  transform: rotate(var(--a)) translateX(0);
+  opacity: 0;
+  animation: spark 0.42s ease-out both;
+  animation-delay: var(--delay, 0ms);
+}
+@keyframes spark {
+  0% { opacity: 1; transform: rotate(var(--a)) translateX(4px) scaleX(0.4); }
+  100% { opacity: 0; transform: rotate(var(--a)) translateX(var(--d)) scaleX(1); }
+}
+
+/* Rafale plein écran */
+.volley {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  pointer-events: none;
+  animation: volley-out 1.25s ease-in forwards;
+}
+.volley .bullet { position: absolute; }
+.volley-glass {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 208, 138, 0.16), transparent 60%);
+  animation: flash 0.3s ease-out both;
+}
+@keyframes volley-out {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.volley .stamp { position: absolute; left: 50%; top: 22%; translate: -50% 0; animation-delay: 0.3s; }
+
+/* ─── Insigne : pièce de métal en 3D ─────────────────────────────────────── */
+.coin {
+  display: inline-block;
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.6));
+}
+.coin--idle { animation: coin-idle 7s ease-in-out infinite; }
+@keyframes coin-idle {
+  0%, 100% { transform: perspective(500px) rotateY(-10deg) rotateX(3deg); }
+  50% { transform: perspective(500px) rotateY(10deg) rotateX(-2deg); }
+}
+.promotion .coin { animation: coin-spin 1.7s var(--ease-heavy) 0.15s both; }
+@keyframes coin-spin {
+  0% { transform: perspective(600px) rotateY(-900deg) scale(2.2); opacity: 0; filter: brightness(2.4); }
+  60% { opacity: 1; }
+  80% { transform: perspective(600px) rotateY(8deg) scale(0.96); filter: brightness(1.3); }
+  100% { transform: perspective(600px) rotateY(0) scale(1); filter: brightness(1) drop-shadow(0 8px 14px rgba(0, 0, 0, 0.6)); }
+}
+.coin .sheen {
+  mix-blend-mode: overlay;
+  animation: sheen 4.5s ease-in-out infinite;
+}
+@keyframes sheen {
+  0%, 60% { transform: translateX(-60px); }
+  100% { transform: translateX(60px); }
+}
+
+/* ─── Ordre de mission : bandeau HUD ─────────────────────────────────────── */
+.orders { position: relative; }
+.orders::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -30px;
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+  opacity: 0.07;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%23cfae68' stroke-width='0.6'%3E%3Ccircle cx='50' cy='50' r='46'/%3E%3Ccircle cx='50' cy='50' r='30'/%3E%3Ccircle cx='50' cy='50' r='3'/%3E%3Cpath d='M50 0v38M50 62v38M0 50h38M62 50h38'/%3E%3Cpath d='M44 20h12M44 80h12M20 44v12M80 44v12'/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: reticle 40s linear infinite;
+}
+@keyframes reticle { to { transform: rotate(360deg); } }
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-stencil);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--blood-bright);
+}
+.live::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blood-bright);
+  box-shadow: 0 0 8px var(--blood-bright);
+  animation: blink 1.6s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0.2; } }
+
+.orders h1 {
+  text-shadow: 0 2px 0 #000, 0 0 24px rgba(168, 20, 31, 0.35);
+}
+
+/* ─── Barre d'onglets tactique ───────────────────────────────────────────── */
+.tabbar {
+  background:
+    repeating-linear-gradient(96deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, rgba(23, 24, 28, 0.96), rgba(6, 5, 7, 0.98));
+  border-top: 1px solid #2a2c32;
+  box-shadow: 0 -1px 0 rgba(168, 138, 74, 0.25), 0 -12px 30px rgba(0, 0, 0, 0.6);
+}
+.tab { position: relative; transition: color 0.2s; }
+.tab[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 22px;
+  height: 3px;
+  translate: -50% 0;
+  background: var(--blood-bright);
+  box-shadow: 0 0 10px var(--blood);
+}
+.tab:active svg { transform: scale(0.9); }
+.tab svg { transition: transform 0.12s; }
+.tab--log .tab-diamond {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 45%),
+    linear-gradient(180deg, var(--blood), var(--bordeaux));
+  box-shadow: 0 0 18px rgba(168, 20, 31, 0.55);
+  transition: transform 0.15s var(--ease-snap);
+}
+.tab--log:active .tab-diamond { transform: scale(0.9) rotate(45deg); }
+
+/* ─── Boutons : métal et sang ────────────────────────────────────────────── */
+.btn--primary {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 42%),
+    linear-gradient(180deg, #b3161f, #6e0e16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 -3px 0 rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+.btn--primary:active { filter: brightness(0.85); }
+.btn {
+  transition: transform 0.12s var(--ease-snap), filter 0.12s, background 0.15s;
+}
+
+/* ─── Douilles du streak ─────────────────────────────────────────────────── */
+.cartridges {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  padding-top: 10px;
+  border-top: 1px solid #2a2c32;
+}
+.cartridge { display: inline-block; width: 14px; height: 40px; }
+.cartridge svg { width: 100%; height: 100%; display: block; }
+.cartridge--live .cart-bullet { fill: #b87333; }
+.cartridge--live .cart-case,
+.cartridge--live .cart-rim { fill: #cfae68; }
+.cartridge--live .cart-primer { fill: #8a6f38; }
+.cartridge--joker .cart-bullet { fill: #6f8fb0; }
+.cartridge--joker .cart-case,
+.cartridge--joker .cart-rim { fill: #9fb2c4; }
+.cartridge--spent .cart-bullet { fill: transparent; }
+.cartridge--spent .cart-case,
+.cartridge--spent .cart-rim { fill: #4a3d22; }
+.cartridge--spent .cart-primer { fill: var(--blood); }
+.cartridge--spent { transform: rotate(-14deg) translateY(4px); opacity: 0.8; }
+.cartridge--pending .cart-bullet,
+.cartridge--pending .cart-case,
+.cartridge--pending .cart-rim { fill: none; stroke: #3a3c43; stroke-width: 1; }
+.cartridge--pending .cart-primer { fill: none; }
+.cartridges-label { margin-left: auto; font-size: 13px; color: var(--bone-dim); align-self: center; }
+
+/* Flamme plus vive */
+.flame--lit { filter: drop-shadow(0 0 10px rgba(255, 120, 40, 0.45)); }
+
+/* ─── Mouvement réduit : on fige tout ce qui n'est pas une réponse à l'action ─ */
+@media (prefers-reduced-motion: reduce) {
+  .ambience,
+  .orders::before { display: none; }
+  .tilt,
+  .tilt[data-pressed] { transform: none; }
+  .bullet-sparks,
+  .bullet-flash { display: none; }
+}
+
+/* Séance faite dans le plan : un impact au lieu d'une coche */
+.done-mark { display: inline-grid; place-items: center; width: 34px; height: 34px; }
+.mini-session.session--done .title { text-decoration: line-through; text-decoration-color: rgba(168, 20, 31, 0.7); text-decoration-thickness: 2px; }
+
+/* Liseré de métal froissé autour du trou */
+.bullet-core { stroke: rgba(214, 204, 184, 0.45); stroke-width: 0.9; }
+
+/* Rafale : l'écran se fend comme du verre blindé */
+.volley .bullet-cracks path { stroke: rgba(255, 255, 255, 0.8); stroke-width: 0.9; }
+.volley .bullet-petals { fill: rgba(230, 230, 235, 0.14); stroke: rgba(255, 255, 255, 0.7); stroke-width: 0.6; }
+.volley .bullet-core { stroke: rgba(255, 255, 255, 0.85); stroke-width: 1.1; }
+.volley .bullet-burn { opacity: 0.35; }
+.volley .bullet svg { filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.9)); }
+
+/* Tampon de la rafale : net, lisible par-dessus les impacts */
+.volley .stamp {
+  top: 38%;
+  mix-blend-mode: normal;
+  background: rgba(6, 5, 7, 0.72);
+  color: #e0333e;
+  text-shadow: 0 0 18px rgba(168, 20, 31, 0.6);
+  font-size: 56px;
+}
+
+/* Feuilles du bas : même acier que les plaques, liseré laiton */
+.sheet {
+  background:
+    repeating-linear-gradient(96deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, var(--gunmetal-hi), var(--gunmetal) 30%, #0f1013);
+  box-shadow: 0 -1px 0 rgba(207, 174, 104, 0.35), 0 -24px 60px rgba(0, 0, 0, 0.7);
+}
+.sheet-backdrop { background: rgba(0, 0, 0, 0.72); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+
+/* ─── Accueil : le réticule se trace, l'insigne apparaît ─────────────────── */
+.intro { position: relative; display: grid; place-items: center; width: 200px; height: 200px; }
+.intro-reticle { position: absolute; inset: 0; width: 100%; height: 100%; }
+.intro-reticle * {
+  fill: none;
+  stroke: var(--brass);
+  stroke-width: 0.8;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: crack 1.1s var(--ease-heavy) forwards;
+}
+.intro-reticle circle:nth-child(2) { stroke: var(--blood); animation-delay: 0.25s; }
+.intro-reticle path { animation-delay: 0.5s; }
+.intro-reticle { animation: reticle 60s linear 1.6s infinite; }
+.intro .coin { animation: coin-spin 1.4s var(--ease-heavy) 0.2s both, coin-idle 7s ease-in-out 1.6s infinite; }
+.intro-title { text-shadow: 0 2px 0 #000, 0 0 30px rgba(168, 20, 31, 0.45); animation: deploy 0.6s var(--ease-heavy) 0.5s backwards; }

@@ -22,8 +22,16 @@ export function Onboarding() {
     <main className="app">
       <div className="screen">
         <header className="screen-head" style={{ justifyItems: 'center', textAlign: 'center', paddingTop: 24 }}>
-          <Insignia rank={0} size={96} />
-          <h1 style={{ fontSize: 'var(--step-4)' }}>Matricule</h1>
+          <div className="intro">
+            <svg className="intro-reticle" viewBox="0 0 200 200" aria-hidden="true">
+              <circle cx="100" cy="100" r="92" pathLength={1} />
+              <circle cx="100" cy="100" r="64" pathLength={1} />
+              <path d="M100 0v46M100 154v46M0 100h46M154 100h46" pathLength={1} />
+              <path d="M88 30h24M88 170h24M30 88v24M170 88v24" pathLength={1} />
+            </svg>
+            <Insignia rank={0} size={96} motion="idle" />
+          </div>
+          <h1 className="intro-title" style={{ fontSize: 'var(--step-4)' }}>Matricule</h1>
           <p className="muted">Programme hybride : 58 semaines pour construire, mesurer, ajuster.</p>
         </header>
 
@@ -33,7 +41,7 @@ export function Onboarding() {
           {BLOCKS.map((b) => (
             <li key={b.name} className="row" style={{ alignItems: 'baseline' }}>
               <span className="num kicker" style={{ minWidth: 64 }}>
-                {b.from === b.to ? `S${b.from}` : `S${String(b.from).padStart(2, '0')}-${b.to}`}
+                {b.from === b.to ? `S${b.from}` : `S${String(b.from).padStart(2, '0')}-${String(b.to).padStart(2, '0')}`}
               </span>
               <span>
                 <b>{b.name}</b> <span className="muted small">{b.goal}</span>
